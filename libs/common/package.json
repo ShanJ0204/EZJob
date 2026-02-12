@@ -1,0 +1,20 @@
+{
+  "name": "@ezjob/common",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "echo 'lint not configured yet'",
+    "test": "echo 'test not configured yet'"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2"
+  }
+}

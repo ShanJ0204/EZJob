@@ -1,0 +1,21 @@
+{
+  "name": "ezjob",
+  "private": true,
+  "version": "0.1.0",
+  "description": "EZJob monorepo",
+  "workspaces": [
+    "apps/*",
+    "libs/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:api": "npm run dev --workspace @ezjob/api",
+    "dev:worker": "npm run dev --workspace @ezjob/worker",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
