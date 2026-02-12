@@ -9,16 +9,21 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "lint": "echo 'lint not configured yet'",
-    "test": "echo 'test not configured yet'"
+    "test": "echo 'test not configured yet'",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@ezjob/common": "0.1.0",
     "dotenv": "^16.4.5",
-    "fastify": "^4.28.1"
+    "fastify": "^4.28.1",
+    "@prisma/client": "^5.21.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "prisma": "^5.21.1"
   }
 }

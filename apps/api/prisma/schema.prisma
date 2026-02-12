@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String               @id @default(uuid()) @db.Uuid
+  email               String               @unique
+  passwordHash        String?              @map("password_hash")
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userPreferences     UserPreference?
+  candidateProfile    CandidateProfile?
+  resumeMasters       ResumeMaster[]
+  resumeVariants      ResumeVariant[]
+  matchResults        MatchResult[]
+  notificationEvents  NotificationEvent[]
+  applicationAttempts ApplicationAttempt[]
+
+  @@map("users")
+}
+
+model UserPreference {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  desiredTitles      String[] @default([]) @map("desired_titles")
+  preferredLocations String[] @default([]) @map("preferred_locations")
+  remoteOnly         Boolean  @default(false) @map("remote_only")
+  minSalary          Int?     @map("min_salary")
+  maxSalary          Int?     @map("max_salary")
+  employmentTypes    String[] @default([]) @map("employment_types")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model CandidateProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  fullName        String?  @map("full_name")
+  phone           String?
+  linkedinUrl     String?  @map("linkedin_url")
+  githubUrl       String?  @map("github_url")
+  yearsExperience Decimal? @map("years_experience") @db.Decimal(4, 1)
+  summary         String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeMasters   ResumeMaster[]
+
+  @@map("candidate_profiles")
+}
+
+model ResumeMaster {
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @map("user_id") @db.Uuid
+  candidateProfileId String?           @map("candidate_profile_id") @db.Uuid
+  title              String
+  storageUri         String            @map("storage_uri")
+  checksum           String
+  parsedText         String?           @map("parsed_text")
+  isActive           Boolean           @default(true) @map("is_active")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  candidateProfile   CandidateProfile? @relation(fields: [candidateProfileId], references: [id], onDelete: SetNull)
+  resumeVariants     ResumeVariant[]
+
+  @@unique([userId, checksum])
+  @@index([userId, createdAt(sort: Desc)], map: "idx_resume_masters_user_created_at")
+  @@map("resume_masters")
+}
+
+model ResumeVariant {
+  id                  String               @id @default(uuid()) @db.Uuid
+  resumeMasterId      String               @map("resume_master_id") @db.Uuid
+  userId              String               @map("user_id") @db.Uuid
+  label               String
+  targetRole          String?              @map("target_role")
+  contentUri          String               @map("content_uri")
+  contentHash         String               @map("content_hash")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resumeMaster        ResumeMaster         @relation(fields: [resumeMasterId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchResults        MatchResult[]
+  applicationAttempts ApplicationAttempt[]
+
+  @@unique([resumeMasterId, contentHash])
+  @@index([userId, createdAt(sort: Desc)], map: "idx_resume_variants_user_created_at")
+  @@map("resume_variants")
+}
+
+model JobPosting {
+  id                  String               @id @default(uuid()) @db.Uuid
+  sourceName          String               @map("source_name")
+  sourceJobId         String               @map("source_job_id")
+  sourceUrl           String?              @map("source_url")
+  sourcePayload       Json?                @map("source_payload")
+  title               String
+  companyName         String               @map("company_name")
+  locationText        String?              @map("location_text")
+  locationCity        String?              @map("location_city")
+  locationState       String?              @map("location_state")
+  locationCountry     String?              @map("location_country")
+  isRemote            Boolean              @default(false) @map("is_remote")
+  employmentType      String?              @map("employment_type")
+  seniorityLevel      String?              @map("seniority_level")
+  salaryMin           Int?                 @map("salary_min")
+  salaryMax           Int?                 @map("salary_max")
+  salaryCurrency      String?              @map("salary_currency")
+  postedAt            DateTime?            @map("posted_at") @db.Timestamptz(6)
+  indexedAt           DateTime             @default(now()) @map("indexed_at") @db.Timestamptz(6)
+  description         String?
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  matchResults        MatchResult[]
+  applicationAttempts ApplicationAttempt[]
+
+  @@unique([sourceName, sourceJobId])
+  @@index([indexedAt(sort: Desc)], map: "idx_job_postings_indexed_at")
+  @@index([postedAt(sort: Desc)], map: "idx_job_postings_posted_at")
+  @@index([sourceName], map: "idx_job_postings_source_name")
+  @@map("job_postings")
+}
+
+model MatchResult {
+  id                  String               @id @default(uuid()) @db.Uuid
+  userId              String               @map("user_id") @db.Uuid
+  jobPostingId        String               @map("job_posting_id") @db.Uuid
+  resumeVariantId     String?              @map("resume_variant_id") @db.Uuid
+  score               Decimal              @db.Decimal(5, 2)
+  reasonSummary       String?              @map("reason_summary")
+  reasonDetails       Json?                @map("reason_details")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPosting          JobPosting           @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  resumeVariant       ResumeVariant?       @relation(fields: [resumeVariantId], references: [id], onDelete: SetNull)
+  notificationEvents  NotificationEvent[]
+  applicationAttempts ApplicationAttempt[]
+
+  @@unique([userId, jobPostingId, resumeVariantId])
+  @@index([userId, score(sort: Desc), createdAt(sort: Desc)], map: "idx_match_results_user_score_created")
+  @@index([jobPostingId], map: "idx_match_results_job_posting")
+  @@map("match_results")
+}
+
+model NotificationEvent {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  matchResultId String?     @map("match_result_id") @db.Uuid
+  channel       String
+  eventType     String      @map("event_type")
+  payload       Json?
+  status        String
+  sentAt        DateTime?   @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchResult   MatchResult? @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt(sort: Desc)], map: "idx_notification_events_user_status_created")
+  @@map("notification_events")
+}
+
+model ApplicationAttempt {
+  id                    String        @id @default(uuid()) @db.Uuid
+  userId                String        @map("user_id") @db.Uuid
+  jobPostingId          String        @map("job_posting_id") @db.Uuid
+  resumeVariantId       String?       @map("resume_variant_id") @db.Uuid
+  matchResultId         String?       @map("match_result_id") @db.Uuid
+  status                String
+  provider              String?
+  externalApplicationId String?       @map("external_application_id")
+  requestArtifactUri    String?       @map("request_artifact_uri")
+  responseArtifactUri   String?       @map("response_artifact_uri")
+  errorArtifactUri      String?       @map("error_artifact_uri")
+  attemptedAt           DateTime      @default(now()) @map("attempted_at") @db.Timestamptz(6)
+  completedAt           DateTime?     @map("completed_at") @db.Timestamptz(6)
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPosting            JobPosting    @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  resumeVariant         ResumeVariant? @relation(fields: [resumeVariantId], references: [id], onDelete: SetNull)
+  matchResult           MatchResult?  @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, attemptedAt(sort: Desc)], map: "idx_application_attempts_user_status_attempted")
+  @@index([jobPostingId, status], map: "idx_application_attempts_job_status")
+  @@map("application_attempts")
+}
