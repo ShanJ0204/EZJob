@@ -34,6 +34,11 @@ model UserPreference {
   minSalary          Int?     @map("min_salary")
   maxSalary          Int?     @map("max_salary")
   employmentTypes    String[] @default([]) @map("employment_types")
+  notificationsEnabled Boolean @default(true) @map("notifications_enabled")
+  maxNotificationsPerHour Int @default(3) @map("max_notifications_per_hour")
+  quietHoursStart    Int?    @map("quiet_hours_start")
+  quietHoursEnd      Int?    @map("quiet_hours_end")
+  timeZone           String  @default("UTC") @map("time_zone")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -160,12 +165,15 @@ model NotificationEvent {
   eventType     String      @map("event_type")
   payload       Json?
   status        String
+  externalMessageId String?  @map("external_message_id")
+  decision      String?
   sentAt        DateTime?   @map("sent_at") @db.Timestamptz(6)
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   matchResult   MatchResult? @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, createdAt(sort: Desc)], map: "idx_notification_events_user_status_created")
+  @@index([externalMessageId], map: "idx_notification_events_external_message_id")
   @@map("notification_events")
 }
 
