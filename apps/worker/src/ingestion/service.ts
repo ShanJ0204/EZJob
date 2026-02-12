@@ -1,12 +1,9 @@
-import path from "node:path";
 import type { IngestionConnector, IngestionRunMetadata } from "./types.js";
 import { deduplicatePostings } from "./dedup.js";
-import { FileIngestionRepository } from "./storage/file-ingestion.repository.js";
+import { PostgresIngestionRepository } from "./storage/postgres-ingestion.repository.js";
 
 export class IngestionService {
-  private readonly repository = new FileIngestionRepository(
-    path.resolve(process.cwd(), "apps/worker/.data/ingestion-store.json")
-  );
+  private readonly repository = new PostgresIngestionRepository();
 
   constructor(private readonly connectors: IngestionConnector[]) {}
 
@@ -18,7 +15,7 @@ export class IngestionService {
       const startedAt = Date.now();
       const result = await connector.fetchPostings();
       const dedup = deduplicatePostings(result.jobs, existing);
-      await this.repository.savePostings(dedup.unique);
+      const upsertStats = await this.repository.upsertPostings(dedup.unique);
       existing.push(...dedup.unique);
 
       const completedAt = Date.now();
@@ -29,9 +26,10 @@ export class IngestionService {
         completedAt: new Date(completedAt).toISOString(),
         durationMs: completedAt - startedAt,
         fetchedCount: result.jobs.length,
-        insertedCount: dedup.unique.length,
-        exactDuplicateCount: dedup.exactDuplicateCount,
+        insertedCount: upsertStats.insertedCount,
+        exactDuplicateCount: dedup.exactDuplicateCount + upsertStats.conflictCount,
         fuzzyDuplicateCount: dedup.fuzzyDuplicateCount,
+        dbDuplicateCount: upsertStats.conflictCount,
         errors: result.errors
       };
 
