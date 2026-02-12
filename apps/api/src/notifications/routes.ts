@@ -71,15 +71,6 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
 
   app.post("/notifications/telegram/webhook", async (request, reply) => {
     try {
-      const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-      if (webhookSecret) {
-        const headerSecret = request.headers["x-telegram-bot-api-secret-token"];
-        const providedSecret = Array.isArray(headerSecret) ? headerSecret[0] : headerSecret;
-        if (providedSecret !== webhookSecret) {
-          return reply.code(403).send({ status: "forbidden" });
-        }
-      }
-
       const body = request.body;
       if (!isObject(body) || !isObject(body.callback_query)) {
         return reply.code(200).send({ status: "ignored" });
@@ -96,6 +87,7 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
       }
 
       const payload: CallbackPayload = {
+        userId: callbackData.userId,
         matchResultId: callbackData.matchResultId,
         messageId: String(
           isObject(callbackQuery.message) && typeof callbackQuery.message.message_id === "number"
