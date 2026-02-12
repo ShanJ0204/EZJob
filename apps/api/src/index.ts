@@ -2,14 +2,18 @@ import "dotenv/config";
 import Fastify from "fastify";
 import { QUEUE_NAMES } from "@ezjob/common";
 
-import { ConsoleNotificationBot } from "./notifications/bot.js";
+import { ConsoleNotificationBot, TelegramNotificationBot } from "./notifications/bot.js";
 import { registerNotificationRoutes } from "./notifications/routes.js";
 import { NotificationService } from "./notifications/service.js";
 import { prisma } from "./lib/prisma.js";
 
 const app = Fastify({ logger: true });
 
-const notificationService = new NotificationService(new ConsoleNotificationBot());
+const notificationBot = process.env.TELEGRAM_BOT_TOKEN
+  ? new TelegramNotificationBot()
+  : new ConsoleNotificationBot();
+
+const notificationService = new NotificationService(notificationBot);
 
 app.get("/health", async () => ({ status: "ok" }));
 

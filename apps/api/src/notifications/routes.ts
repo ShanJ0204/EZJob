@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 
+import { TelegramNotificationBot } from "./bot.js";
 import { NotificationService } from "./service.js";
 import { CallbackPayload, MatchAlertPayload, NOTIFICATION_ACTIONS, NotificationAction } from "./types.js";
 
@@ -64,6 +65,48 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
       request.log.error({ err: error }, "failed to process callback");
       return reply.code(400).send({
         error: error instanceof Error ? error.message : "Invalid request",
+      });
+    }
+  });
+
+  app.post("/notifications/telegram/webhook", async (request, reply) => {
+    try {
+      const body = request.body;
+      if (!isObject(body) || !isObject(body.callback_query)) {
+        return reply.code(200).send({ status: "ignored" });
+      }
+
+      const callbackQuery = body.callback_query;
+      const callbackData =
+        typeof callbackQuery.data === "string"
+          ? TelegramNotificationBot.parseCallbackData(callbackQuery.data)
+          : undefined;
+
+      if (!callbackData || !isNotificationAction(callbackData.action)) {
+        return reply.code(200).send({ status: "ignored" });
+      }
+
+      const payload: CallbackPayload = {
+        userId: callbackData.userId,
+        matchResultId: callbackData.matchResultId,
+        messageId: String(
+          isObject(callbackQuery.message) && typeof callbackQuery.message.message_id === "number"
+            ? callbackQuery.message.message_id
+            : callbackQuery.id
+        ),
+        action: callbackData.action,
+        metadata: {
+          telegramCallbackId:
+            typeof callbackQuery.id === "string" ? callbackQuery.id : undefined
+        }
+      };
+
+      const result = await service.captureCallback(payload);
+      return reply.code(200).send(result);
+    } catch (error) {
+      request.log.error({ err: error }, "failed to process telegram webhook callback");
+      return reply.code(400).send({
+        error: error instanceof Error ? error.message : "Invalid telegram webhook request"
       });
     }
   });
