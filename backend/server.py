@@ -417,9 +417,13 @@ async def get_dashboard(user=Depends(get_current_user)):
     ready = await db.application_attempts.count_documents({"user_id": uid, "status": "ready"})
     total_jobs = await db.job_postings.count_documents({})
     recent_matches = await db.match_results.find({"user_id": uid}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    rm_job_ids = list(set(m.get("job_posting_id") for m in recent_matches if m.get("job_posting_id")))
+    rm_jobs_map = {}
+    if rm_job_ids:
+        async for job in db.job_postings.find({"posting_id": {"$in": rm_job_ids}}, {"_id": 0}):
+            rm_jobs_map[job["posting_id"]] = job
     for m in recent_matches:
-        job = await db.job_postings.find_one({"posting_id": m.get("job_posting_id")}, {"_id": 0})
-        m["job"] = job
+        m["job"] = rm_jobs_map.get(m.get("job_posting_id"))
     return {
         "funnel": {"total_matches": total_matches, "pending": pending, "approved": approved, "rejected": rejected, "applied": applied, "ready": ready},
         "total_jobs_indexed": total_jobs, "recent_matches": recent_matches,
