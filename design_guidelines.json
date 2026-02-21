@@ -113,7 +113,9 @@
     "5. ROUTING: Set up React Router with routes: / (Login), /auth/callback, /dashboard, /matches, /matches/:id, /preferences, /profile, /applications.",
     "6. MOCKING: Since the backend is Python/FastAPI and might be in a separate repo or folder, MOCK all API calls in a 'services/api.ts' file initially to ensure the UI is functional. Use 'setTimeout' to simulate latency.",
     "7. TESTING: Add 'data-testid' to all interactive elements (buttons, inputs, links).",
-    "8. THEME: Force dark mode by adding 'dark' class to the html or body tag, or using a ThemeProvider context."
+    "8. THEME: Force dark mode by adding 'dark' class to the html or body tag, or using a ThemeProvider context.",
+    "9. CODING STANDARDS: Use named exports for components (export const Component = ...) and default exports for pages (export default function Page() ...). Prioritize reusing UI components.",
+    "10. TOASTS: Use 'sonner' for toast notifications."
   ],
   "universal_guidelines": [
     "Design for Density: Job seekers want to scan information quickly. Avoid excessive whitespace in data lists.",
