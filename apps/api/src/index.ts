@@ -3,10 +3,7 @@ import Fastify from "fastify";
 import { QUEUE_NAMES } from "@ezjob/common";
 
 import { ConsoleNotificationBot, TelegramNotificationBot } from "./notifications/bot.js";
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-=======
 import { BullApplyQueuePublisher } from "./notifications/apply-queue.js";
->>>>>>> main
 import { registerNotificationRoutes } from "./notifications/routes.js";
 import { NotificationService } from "./notifications/service.js";
 import { registerUserSetupRoutes } from "./users/routes.js";
@@ -56,14 +53,9 @@ const app = Fastify({ logger: true });
 const notificationBot = process.env.TELEGRAM_BOT_TOKEN
   ? new TelegramNotificationBot()
   : new ConsoleNotificationBot();
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-
-const notificationService = new NotificationService(notificationBot);
-=======
 const applyQueuePublisher = new BullApplyQueuePublisher();
 
 const notificationService = new NotificationService(notificationBot, applyQueuePublisher);
->>>>>>> main
 
 app.get("/health", async () => ({ status: "ok" }));
 

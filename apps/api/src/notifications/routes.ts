@@ -77,18 +77,6 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
 
   app.post("/notifications/telegram/webhook", async (request, reply) => {
     try {
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-      const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-      if (webhookSecret) {
-        const headerSecret = request.headers["x-telegram-bot-api-secret-token"];
-        const providedSecret = Array.isArray(headerSecret) ? headerSecret[0] : headerSecret;
-        if (providedSecret !== webhookSecret) {
-          return reply.code(403).send({ status: "forbidden" });
-        }
-      }
-
-=======
->>>>>>> main
       const body = request.body;
       if (!isObject(body) || !isObject(body.callback_query)) {
         return reply.code(200).send({ status: "ignored" });
@@ -105,10 +93,7 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
       }
 
       const payload: CallbackPayload = {
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-=======
         userId: callbackData.userId,
->>>>>>> main
         matchResultId: callbackData.matchResultId,
         messageId: String(
           isObject(callbackQuery.message) && typeof callbackQuery.message.message_id === "number"
@@ -119,12 +104,8 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
         metadata: {
           telegramCallbackId:
             typeof callbackQuery.id === "string" ? callbackQuery.id : undefined
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-        }
-=======
         },
         correlationId: request.id,
->>>>>>> main
       };
 
       const result = await service.captureCallback(payload);
