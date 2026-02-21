@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+motor
+httpx
+pydantic
+python-dotenv
+emergentintegrations
+feedparser
