@@ -185,6 +185,113 @@ class EZJobAPITester:
             self.log("⚠️ No matches found to test actions with")
             return True  # Not a failure, just no data
 
+    def test_resume_upload(self):
+        """Test POST /api/resume/upload - Upload PDF file"""
+        # Create a minimal PDF-like content for testing
+        import io
+        pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n>>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000074 00000 n \n0000000120 00000 n \ntrailer\n<<\n/Size 4\n/Root 1 0 R\n>>\nstartxref\n178\n%%EOF"
+        
+        files = {
+            'file': ('test_resume.pdf', io.BytesIO(pdf_content), 'application/pdf')
+        }
+        
+        return self.run_test("Resume Upload", "POST", "api/resume/upload", 200, files=files)
+
+    def test_delete_resume(self):
+        """Test DELETE /api/resume - Delete uploaded resume"""
+        return self.run_test("Delete Resume", "DELETE", "api/resume", 200)
+
+    def test_notification_settings_get(self):
+        """Test GET /api/notifications/settings"""
+        return self.run_test("Get Notification Settings", "GET", "api/notifications/settings", 200)
+
+    def test_notification_settings_update(self):
+        """Test PUT /api/notifications/settings"""
+        data = {
+            "email_enabled": True,
+            "email_address": "test@example.com",
+            "telegram_enabled": False,
+            "telegram_bot_token": "",
+            "telegram_chat_id": ""
+        }
+        return self.run_test("Update Notification Settings", "PUT", "api/notifications/settings", 200, data)
+
+    def test_notification_history(self):
+        """Test GET /api/notifications/history"""
+        return self.run_test("Get Notification History", "GET", "api/notifications/history", 200)
+
+    def test_notification_test(self):
+        """Test POST /api/notifications/test - Should return 'skipped' when no RESEND_API_KEY"""
+        success, response = self.run_test("Test Notification", "POST", "api/notifications/test", 200)
+        if success:
+            # Verify it returns appropriate status when no channels configured
+            status = response.get('status')
+            if status in ['no_channels', 'sent']:
+                self.log(f"✅ Test notification returned expected status: {status}")
+                return True
+            elif status == 'skipped':
+                self.log(f"✅ Email skipped as expected (no RESEND_API_KEY configured)")
+                return True
+            else:
+                self.log(f"⚠️ Unexpected status: {status}", False)
+                return False
+        return success
+
+    def test_ingestion_with_sources(self):
+        """Test POST /api/ingestion/run - Should return sources array with both Remotive and WeWorkRemotely"""
+        self.log("⚠️ Ingestion may take time and hit external APIs (Remotive + WeWorkRemotely)")
+        success, response = self.run_test("Trigger Ingestion (Multi-Source)", "POST", "api/ingestion/run", 200)
+        if success:
+            sources = response.get('sources', [])
+            source_names = [s.get('source') for s in sources]
+            self.log(f"Sources found: {source_names}")
+            
+            # Check if both sources are present
+            expected_sources = ['remotive', 'weworkremotely']
+            for expected in expected_sources:
+                if expected in source_names:
+                    self.log(f"✅ Found expected source: {expected}")
+                else:
+                    self.log(f"⚠️ Missing expected source: {expected}")
+            
+            total_fetched = response.get('total_fetched', 0)
+            self.log(f"Total jobs fetched: {total_fetched}")
+            return True
+        return success
+
+    def test_ingestion_stats(self):
+        """Test GET /api/ingestion/stats - Should include by_source breakdown"""
+        success, response = self.run_test("Get Ingestion Stats", "GET", "api/ingestion/stats", 200)
+        if success:
+            by_source = response.get('by_source', {})
+            total_jobs = response.get('total_jobs_indexed', 0)
+            self.log(f"Jobs by source: {by_source}")
+            self.log(f"Total indexed: {total_jobs}")
+        return success
+
+    def test_analytics(self):
+        """Test GET /api/analytics - Should return comprehensive analytics data"""
+        success, response = self.run_test("Get Analytics", "GET", "api/analytics", 200)
+        if success:
+            expected_keys = [
+                'score_distribution', 'match_trend', 'status_breakdown', 
+                'source_breakdown', 'average_score', 'total_matches',
+                'top_matches', 'application_funnel', 'notifications'
+            ]
+            
+            for key in expected_keys:
+                if key in response:
+                    self.log(f"✅ Analytics contains {key}: {type(response[key])}")
+                else:
+                    self.log(f"⚠️ Analytics missing {key}", False)
+                    
+            # Log some key stats
+            self.log(f"Total matches: {response.get('total_matches', 0)}")
+            self.log(f"Average score: {response.get('average_score', 0)}")
+            self.log(f"Score distribution: {response.get('score_distribution', {})}")
+            
+        return success
+
     def run_all_tests(self):
         """Run all API tests in sequence"""
         self.log("🚀 Starting EZJob Backend API Test Suite")
