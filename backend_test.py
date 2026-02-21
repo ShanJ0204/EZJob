@@ -354,8 +354,8 @@ startxref
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
-        self.log("🚀 Starting EZJob Backend API Test Suite (with New Features)")
-        self.log("=" * 70)
+        self.log("🚀 Starting EZJob Backend API Test Suite (Iteration 3: 6 Job Sources + Resend Email)")
+        self.log("=" * 80)
         
         # Basic health and auth tests
         self.test_health()
