@@ -458,10 +458,12 @@ startxref
         self.log("\n🧠 Testing LLM Matching (with resume support)...")
         self.test_run_matching()
         
-        # Match and application flow
+        # Match and application flow (with cover letter testing)
+        self.log("\n📝 Testing Match Actions & Cover Letter Generation...")
         self.test_get_matches()
-        self.test_get_applications()
         self.test_match_actions()
+        self.test_get_applications()
+        self.test_generate_cover_letter_by_match()
         
         # === NEW: Analytics page ===
         self.log("\n📊 Testing Analytics...")
