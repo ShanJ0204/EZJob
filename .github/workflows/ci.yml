@@ -1,0 +1,119 @@
+name: EZJob CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ezjob
+          POSTGRES_PASSWORD: ezjob
+          POSTGRES_DB: ezjob
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: TypeScript Check - Common
+        run: npx tsc --noEmit -p libs/common/tsconfig.json
+
+      - name: TypeScript Check - API
+        run: npx tsc --noEmit -p apps/api/tsconfig.json
+
+      - name: TypeScript Check - Worker
+        run: npx tsc --noEmit -p apps/worker/tsconfig.json
+
+      - name: Run API Tests
+        run: npm run test --workspace @ezjob/api
+        env:
+          DATABASE_URL: postgresql://ezjob:ezjob@localhost:5432/ezjob
+          REDIS_URL: redis://localhost:6379/0
+
+  python-backend:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Python lint
+        run: |
+          pip install ruff
+          ruff check backend/
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Install frontend deps
+        run: yarn install
+        working-directory: frontend
+
+      - name: Build frontend
+        run: yarn build
+        working-directory: frontend
+        env:
+          REACT_APP_BACKEND_URL: https://example.com
+          CI: false
