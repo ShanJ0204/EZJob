@@ -476,14 +476,13 @@ async def get_analytics(user=Depends(get_current_user)):
         st = m.get("status", "pending")
         status_counts[st] = status_counts.get(st, 0) + 1
 
-    # Source breakdown
+    # Source breakdown (batch query)
     source_counts = {}
-    job_ids = [m.get("job_posting_id") for m in all_matches]
-    for jid in job_ids:
-        job = await db.job_postings.find_one({"posting_id": jid}, {"_id": 0, "source_name": 1})
-        if job:
-            src = job.get("source_name", "unknown")
-            source_counts[src] = source_counts.get(src, 0) + 1
+    async for doc in db.job_postings.aggregate([
+        {"$match": {"posting_id": {"$in": [m.get("job_posting_id") for m in all_matches]}}},
+        {"$group": {"_id": "$source_name", "count": {"$sum": 1}}}
+    ]):
+        source_counts[doc["_id"]] = doc["count"]
 
     # Average score
     scores = [m.get("score", 0) for m in all_matches]
