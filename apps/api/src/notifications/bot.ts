@@ -16,6 +16,7 @@ export class ConsoleNotificationBot implements NotificationBot {
       actions: input.actions,
       messagePreview: input.text,
       messageId,
+      correlationId: input.correlationId,
     });
 
     return {
@@ -61,6 +62,27 @@ const parseChatIdMap = (raw: string | undefined): Record<string, string> => {
     return {};
   }
 };
+
+const TELEGRAM_SEND_MAX_ATTEMPTS = 4;
+const BASE_BACKOFF_MS = 300;
+
+const getRetryDelayMs = (response: Response, attempt: number): number => {
+  const retryAfterHeader = response.headers.get("retry-after");
+  if (retryAfterHeader) {
+    const asNumber = Number(retryAfterHeader);
+    if (Number.isFinite(asNumber) && asNumber > 0) {
+      return asNumber * 1000;
+    }
+  }
+
+  return BASE_BACKOFF_MS * (2 ** Math.max(0, attempt - 1));
+};
+
+const sleep = async (delayMs: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+};
+
+const isRetryableStatus = (status: number): boolean => status === 429 || status >= 500;
 
 export class TelegramNotificationBot implements NotificationBot {
   private readonly token: string;
@@ -121,36 +143,79 @@ export class TelegramNotificationBot implements NotificationBot {
       }
     ]);
 
-    const response = await fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: input.text,
-        reply_markup: {
-          inline_keyboard: inlineKeyboard
+    for (let attempt = 1; attempt <= TELEGRAM_SEND_MAX_ATTEMPTS; attempt += 1) {
+      let response: Response;
+      try {
+        response = await fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: input.text,
+            reply_markup: {
+              inline_keyboard: inlineKeyboard
+            }
+          })
+        });
+      } catch (error) {
+        console.error("[notification-bot] telegram sendMessage network failure", {
+          correlationId: input.correlationId,
+          provider: "telegram",
+          operation: "sendMessage",
+          userId: input.userId,
+          matchResultId: input.matchResultId,
+          attempt,
+          maxAttempts: TELEGRAM_SEND_MAX_ATTEMPTS,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        if (attempt >= TELEGRAM_SEND_MAX_ATTEMPTS) {
+          throw error;
         }
-      })
-    });
 
-    if (!response.ok) {
-      throw new Error(`Telegram sendMessage failed with HTTP ${response.status}`);
-    }
-
-    const payload = (await response.json()) as TelegramSendMessageResponse;
-    if (!payload.ok || !payload.result?.message_id) {
-      throw new Error(payload.description ?? "Telegram sendMessage returned unexpected response");
-    }
-
-    return {
-      messageId: String(payload.result.message_id),
-      channel: "telegram",
-      rawResponse: {
-        chatId,
-        messageId: payload.result.message_id
+        await sleep(BASE_BACKOFF_MS * (2 ** (attempt - 1)));
+        continue;
       }
-    };
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.error("[notification-bot] telegram sendMessage http failure", {
+          correlationId: input.correlationId,
+          provider: "telegram",
+          operation: "sendMessage",
+          userId: input.userId,
+          matchResultId: input.matchResultId,
+          attempt,
+          maxAttempts: TELEGRAM_SEND_MAX_ATTEMPTS,
+          statusCode: response.status,
+          responseBody: responseText,
+        });
+
+        if (attempt < TELEGRAM_SEND_MAX_ATTEMPTS && isRetryableStatus(response.status)) {
+          await sleep(getRetryDelayMs(response, attempt));
+          continue;
+        }
+
+        throw new Error(`Telegram sendMessage failed with HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as TelegramSendMessageResponse;
+      if (!payload.ok || !payload.result?.message_id) {
+        throw new Error(payload.description ?? "Telegram sendMessage returned unexpected response");
+      }
+
+      return {
+        messageId: String(payload.result.message_id),
+        channel: "telegram",
+        rawResponse: {
+          chatId,
+          messageId: payload.result.message_id
+        }
+      };
+    }
+
+    throw new Error("Telegram sendMessage failed after retries");
   }
 }

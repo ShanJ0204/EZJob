@@ -46,7 +46,10 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
   app.post("/notifications/match-alerts/send", async (request, reply) => {
     try {
       const payload = parseSendBody(request.body);
-      const result = await service.sendMatchAlert(payload);
+      const result = await service.sendMatchAlert({
+        ...payload,
+        correlationId: request.id,
+      });
       return reply.code(200).send(result);
     } catch (error) {
       request.log.error({ err: error }, "failed to send match alert");
@@ -59,7 +62,10 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
   app.post("/notifications/callbacks", async (request, reply) => {
     try {
       const payload = parseCallbackBody(request.body);
-      const result = await service.captureCallback(payload);
+      const result = await service.captureCallback({
+        ...payload,
+        correlationId: request.id,
+      });
       return reply.code(200).send(result);
     } catch (error) {
       request.log.error({ err: error }, "failed to process callback");
@@ -98,7 +104,8 @@ export const registerNotificationRoutes = (app: FastifyInstance, service: Notifi
         metadata: {
           telegramCallbackId:
             typeof callbackQuery.id === "string" ? callbackQuery.id : undefined
-        }
+        },
+        correlationId: request.id,
       };
 
       const result = await service.captureCallback(payload);
