@@ -259,17 +259,33 @@ startxref
         return self.run_test("Get Notification History", "GET", "api/notifications/history", 200)
 
     def test_notification_test(self):
-        """Test POST /api/notifications/test - Should return 'skipped' when no RESEND_API_KEY"""
+        """Test POST /api/notifications/test - With RESEND_API_KEY should attempt real email (may fail with validation_error if domain not verified)"""
         success, response = self.run_test("Test Notification", "POST", "api/notifications/test", 200)
         if success:
-            # Verify it returns appropriate status when no channels configured
             status = response.get('status')
-            if status in ['no_channels', 'sent']:
-                self.log(f"✅ Test notification returned expected status: {status}")
+            if status == 'sent':
+                self.log(f"✅ Test notification sent successfully!")
+                # Check if email was attempted
+                results = response.get('results', {})
+                if 'email' in results:
+                    email_status = results['email'].get('status')
+                    if email_status == 'sent':
+                        self.log(f"✅ Email sent via Resend")
+                    elif email_status == 'failed':
+                        error = results['email'].get('error', '')
+                        if 'validation_error' in error.lower() or 'domain' in error.lower():
+                            self.log(f"✅ Email failed as expected: {error} (domain not verified)")
+                        else:
+                            self.log(f"⚠️ Email failed with: {error}")
+                    else:
+                        self.log(f"⚠️ Unexpected email status: {email_status}")
                 return True
-            elif status == 'skipped':
-                self.log(f"✅ Email skipped as expected (no RESEND_API_KEY configured)")
+            elif status == 'no_channels':
+                self.log(f"✅ No notification channels configured: {response.get('message', '')}")
                 return True
+            elif status == 'error':
+                self.log(f"⚠️ Test notification error: {response.get('message', '')}", False)
+                return False
             else:
                 self.log(f"⚠️ Unexpected status: {status}", False)
                 return False
