@@ -162,8 +162,19 @@ class EZJobAPITester:
         return self.run_test("Get Matches", "GET", "api/matches", 200)
 
     def test_get_applications(self):
-        """Test GET /api/applications"""
-        return self.run_test("Get Applications", "GET", "api/applications", 200)
+        """Test GET /api/applications - Should include cover_letter and cover_letter_status fields"""
+        success, response = self.run_test("Get Applications", "GET", "api/applications", 200)
+        if success:
+            applications = response.get("applications", [])
+            if applications:
+                app = applications[0]
+                has_cover_letter_field = "cover_letter" in app
+                has_cover_letter_status = "cover_letter_status" in app
+                self.log(f"✅ Application has cover_letter field: {has_cover_letter_field}")
+                self.log(f"✅ Application has cover_letter_status field: {has_cover_letter_status}")
+                if has_cover_letter_status:
+                    self.log(f"Cover letter status: {app.get('cover_letter_status', 'none')}")
+        return success
 
     def test_match_actions(self):
         """Test match approve/reject actions and cover letter generation"""
