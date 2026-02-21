@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { Save, Plus, X, MapPin, Briefcase, DollarSign, Bell, Mail, Send } from 'lucide-react';
+import { Save, Plus, X, MapPin, Briefcase, DollarSign, Bell, Mail, Send, ExternalLink, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 export default function Preferences() {
   const [prefs, setPrefs] = useState(null);
@@ -11,6 +11,7 @@ export default function Preferences() {
   const [newTitle, setNewTitle] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
     Promise.all([api.getPreferences(), api.getNotificationSettings()])
@@ -34,10 +35,12 @@ export default function Preferences() {
 
   const testNotif = async () => {
     setTesting(true);
+    setTestResult(null);
     try {
+      await save();
       const result = await api.testNotification();
-      alert(result.status === 'sent' ? 'Test notification sent!' : result.message || 'No channels configured');
-    } catch (e) { alert(e.message); }
+      setTestResult(result);
+    } catch (e) { setTestResult({ status: 'error', message: e.message }); }
     setTesting(false);
   };
 
@@ -63,6 +66,7 @@ export default function Preferences() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
+        {/* Desired Titles */}
         <div className="rounded-xl bg-card border border-border/50 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Briefcase className="w-5 h-5 text-primary" />
@@ -83,6 +87,7 @@ export default function Preferences() {
           </div>
         </div>
 
+        {/* Locations */}
         <div className="rounded-xl bg-card border border-border/50 p-6">
           <div className="flex items-center gap-2 mb-4">
             <MapPin className="w-5 h-5 text-primary" />
@@ -103,6 +108,7 @@ export default function Preferences() {
           </div>
         </div>
 
+        {/* Salary */}
         <div className="rounded-xl bg-card border border-border/50 p-6">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="w-5 h-5 text-primary" />
@@ -124,6 +130,7 @@ export default function Preferences() {
           </div>
         </div>
 
+        {/* General Settings */}
         <div className="rounded-xl bg-card border border-border/50 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Bell className="w-5 h-5 text-primary" />
@@ -153,20 +160,21 @@ export default function Preferences() {
             <Mail className="w-5 h-5 text-primary" />
             <h3 className="font-heading text-lg font-semibold">Email Notifications</h3>
           </div>
+          <p className="text-xs text-muted-foreground mb-4">Get emailed when a new match scores 80+</p>
           <div className="space-y-4">
             <label className="flex items-center justify-between cursor-pointer" data-testid="toggle-email">
-              <span className="text-sm">Enable email alerts for 80+ score matches</span>
+              <span className="text-sm">Enable email alerts</span>
               <div className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${notifSettings?.email_enabled ? 'bg-primary' : 'bg-secondary'}`}
                 onClick={() => setNotifSettings(n => ({ ...n, email_enabled: !n.email_enabled }))}>
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${notifSettings?.email_enabled ? 'left-5' : 'left-1'}`} />
               </div>
             </label>
             {notifSettings?.email_enabled && (
-              <div>
+              <div className="animate-fade-in">
                 <label className="text-sm text-muted-foreground mb-1 block">Email Address</label>
                 <input value={notifSettings?.email_address || ''} data-testid="input-notification-email"
                   onChange={e => setNotifSettings(n => ({ ...n, email_address: e.target.value }))}
-                  placeholder="your@email.com"
+                  placeholder="your@email.com" type="email"
                   className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-transparent focus:border-primary focus:ring-1 focus:ring-primary/50 text-sm transition-all outline-none" />
               </div>
             )}
@@ -179,23 +187,39 @@ export default function Preferences() {
             <Send className="w-5 h-5 text-primary" />
             <h3 className="font-heading text-lg font-semibold">Telegram Notifications</h3>
           </div>
+          <p className="text-xs text-muted-foreground mb-4">Get Telegram messages for 80+ score matches</p>
           <div className="space-y-4">
             <label className="flex items-center justify-between cursor-pointer" data-testid="toggle-telegram">
-              <span className="text-sm">Enable Telegram alerts for 80+ score matches</span>
+              <span className="text-sm">Enable Telegram alerts</span>
               <div className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${notifSettings?.telegram_enabled ? 'bg-primary' : 'bg-secondary'}`}
                 onClick={() => setNotifSettings(n => ({ ...n, telegram_enabled: !n.telegram_enabled }))}>
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${notifSettings?.telegram_enabled ? 'left-5' : 'left-1'}`} />
               </div>
             </label>
             {notifSettings?.telegram_enabled && (
-              <>
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p className="font-medium text-foreground">Setup Instructions:</p>
+                      <ol className="list-decimal ml-3 space-y-0.5">
+                        <li>Open Telegram and search for <span className="font-mono text-primary">@BotFather</span></li>
+                        <li>Send <span className="font-mono text-primary">/newbot</span> and follow the prompts to create a bot</li>
+                        <li>Copy the <span className="font-medium text-foreground">Bot Token</span> and paste it below</li>
+                        <li>Start a chat with your new bot and send any message</li>
+                        <li>Search for <span className="font-mono text-primary">@userinfobot</span> on Telegram to get your <span className="font-medium text-foreground">Chat ID</span></li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-sm text-muted-foreground mb-1 block">Bot Token</label>
                   <input value={notifSettings?.telegram_bot_token || ''} data-testid="input-telegram-token"
                     onChange={e => setNotifSettings(n => ({ ...n, telegram_bot_token: e.target.value }))}
-                    placeholder="123456:ABC-DEF..."
+                    placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
                     className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-transparent focus:border-primary focus:ring-1 focus:ring-primary/50 text-sm font-mono transition-all outline-none" />
-                  <p className="text-xs text-muted-foreground mt-1">Create a bot via @BotFather on Telegram</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground mb-1 block">Chat ID</label>
@@ -203,16 +227,51 @@ export default function Preferences() {
                     onChange={e => setNotifSettings(n => ({ ...n, telegram_chat_id: e.target.value }))}
                     placeholder="123456789"
                     className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-transparent focus:border-primary focus:ring-1 focus:ring-primary/50 text-sm font-mono transition-all outline-none" />
-                  <p className="text-xs text-muted-foreground mt-1">Send /start to your bot, then use @userinfobot to get your ID</p>
                 </div>
-              </>
+              </div>
             )}
+          </div>
+        </div>
+
+        {/* Test Notifications */}
+        <div className="md:col-span-2 rounded-xl bg-card border border-border/50 p-6" data-testid="test-notification-section">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-heading text-lg font-semibold">Test Notifications</h3>
+              <p className="text-xs text-muted-foreground mt-1">Save your settings first, then send a test to verify everything works</p>
+            </div>
             <button onClick={testNotif} disabled={testing} data-testid="test-notification-btn"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 rounded-lg text-sm font-medium transition-all">
-              <Send className="w-4 h-4" />
-              {testing ? 'Sending test...' : 'Send Test Notification'}
+              className="flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 rounded-lg text-sm font-medium transition-all active:scale-95 disabled:opacity-50">
+              {testing ? (
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              {testing ? 'Sending...' : 'Send Test Notification'}
             </button>
           </div>
+          {testResult && (
+            <div className={`mt-4 p-3 rounded-lg flex items-start gap-2 animate-fade-in ${
+              testResult.status === 'sent' ? 'bg-emerald/10 border border-emerald/20' :
+              testResult.status === 'error' ? 'bg-destructive/10 border border-destructive/20' :
+              'bg-amber/10 border border-amber/20'
+            }`} data-testid="test-notification-result">
+              {testResult.status === 'sent' ? <CheckCircle className="w-4 h-4 text-emerald mt-0.5" /> :
+               testResult.status === 'error' ? <AlertCircle className="w-4 h-4 text-destructive mt-0.5" /> :
+               <Info className="w-4 h-4 text-amber mt-0.5" />}
+              <div className="text-sm">
+                {testResult.status === 'sent' && <p className="text-emerald font-medium">Test notification sent successfully!</p>}
+                {testResult.status === 'no_channels' && <p className="text-amber font-medium">{testResult.message}</p>}
+                {testResult.status === 'error' && <p className="text-destructive font-medium">{testResult.message}</p>}
+                {testResult.results && (
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    {testResult.results.email && <p>Email: {testResult.results.email.status} {testResult.results.email.error ? `- ${testResult.results.email.error}` : ''}</p>}
+                    {testResult.results.telegram && <p>Telegram: {testResult.results.telegram.status} {testResult.results.telegram.error ? `- ${testResult.results.telegram.error}` : ''}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
