@@ -9,9 +9,65 @@ const createMockPrisma = () => {
   const store: {
     preferencesByUserId: Record<string, Record<string, unknown>>;
     profileByUserId: Record<string, Record<string, unknown>>;
+    matchesByUserId: Record<string, Array<Record<string, unknown>>>;
+    notificationsByUserId: Record<string, Array<Record<string, unknown>>>;
+    applicationsByUserId: Record<string, Array<Record<string, unknown>>>;
   } = {
     preferencesByUserId: {},
-    profileByUserId: {}
+    profileByUserId: {},
+    matchesByUserId: {
+      "u-vis": [
+        {
+          id: "match-1",
+          jobPostingId: "job-1",
+          score: 91.2,
+          reasonSummary: "Strong backend fit",
+          createdAt: "2026-02-12T11:00:00.000Z",
+          notificationEvents: [{ decision: "approve", createdAt: "2026-02-12T11:05:00.000Z" }]
+        },
+        {
+          id: "match-2",
+          jobPostingId: "job-2",
+          score: 74.1,
+          reasonSummary: "Partial experience overlap",
+          createdAt: "2026-02-11T11:00:00.000Z",
+          notificationEvents: [{ decision: "skip", createdAt: "2026-02-11T11:05:00.000Z" }]
+        }
+      ]
+    },
+    notificationsByUserId: {
+      "u-vis": [
+        {
+          id: "notif-1",
+          matchResultId: "match-1",
+          status: "sent",
+          decision: "approve",
+          eventType: "match_alert",
+          sentAt: "2026-02-12T11:05:00.000Z",
+          createdAt: "2026-02-12T11:05:00.000Z",
+          matchResult: {
+            score: 91.2,
+            reasonSummary: "Strong backend fit"
+          }
+        }
+      ]
+    },
+    applicationsByUserId: {
+      "u-vis": [
+        {
+          id: "app-1",
+          jobPostingId: "job-1",
+          matchResultId: "match-1",
+          status: "applied",
+          attemptedAt: "2026-02-12T11:10:00.000Z",
+          completedAt: "2026-02-12T11:11:00.000Z",
+          matchResult: {
+            score: 91.2,
+            reasonSummary: "Strong backend fit"
+          }
+        }
+      ]
+    }
   };
 
   return {
@@ -43,6 +99,55 @@ const createMockPrisma = () => {
         const next = Object.keys(existing).length === 0 ? args.create : { ...existing, ...args.update };
         store.profileByUserId[args.where.userId] = next;
         return next as never;
+      }
+    }
+    ,
+    matchResult: {
+      async findMany(args: {
+        where: { userId: string; notificationEvents?: { some: { decision: string } } };
+        take: number;
+      }) {
+        const source = store.matchesByUserId[args.where.userId] ?? [];
+        const filtered = args.where.notificationEvents?.some.decision
+          ? source.filter(
+              (entry) =>
+                Array.isArray(entry.notificationEvents) &&
+                entry.notificationEvents.some(
+                  (event) => event && typeof event === "object" && event.decision === args.where.notificationEvents?.some.decision
+                )
+            )
+          : source;
+
+        return filtered.slice(0, args.take) as never;
+      },
+      async count(args: { where: { userId: string } }) {
+        return (store.matchesByUserId[args.where.userId] ?? []).length;
+      }
+    },
+    notificationEvent: {
+      async findMany(args: { where: { userId: string } }) {
+        return (store.notificationsByUserId[args.where.userId] ?? []) as never;
+      },
+      async count(args: { where: { userId: string; status?: string; decision?: string } }) {
+        const source = store.notificationsByUserId[args.where.userId] ?? [];
+        return source.filter((entry) => {
+          if (args.where.status && entry.status !== args.where.status) {
+            return false;
+          }
+          if (args.where.decision && entry.decision !== args.where.decision) {
+            return false;
+          }
+          return true;
+        }).length;
+      }
+    },
+    applicationAttempt: {
+      async findMany(args: { where: { userId: string } }) {
+        return (store.applicationsByUserId[args.where.userId] ?? []) as never;
+      },
+      async count(args: { where: { userId: string; status?: string } }) {
+        const source = store.applicationsByUserId[args.where.userId] ?? [];
+        return source.filter((entry) => (args.where.status ? entry.status === args.where.status : true)).length;
       }
     }
   };
@@ -173,6 +278,58 @@ test("PUT /users/:userId/profile validates links and normalizes response", async
     matchingInput: {
       skills: [],
       acceptedSeniority: []
+    }
+  });
+
+  await app.close();
+});
+
+test("GET visibility endpoints return matches, notifications, applications, and funnel", async () => {
+  const app = Fastify();
+  registerUserSetupRoutes(app, createMockPrisma() as never);
+
+  const matchesResponse = await app.inject({
+    method: "GET",
+    url: "/users/u-vis/matches?decision=approve&limit=5"
+  });
+  assert.equal(matchesResponse.statusCode, 200);
+  const matchesBody = JSON.parse(matchesResponse.body);
+  assert.equal(matchesBody.count, 1);
+  assert.deepEqual(matchesBody.matches[0], {
+    id: "match-1",
+    jobPostingId: "job-1",
+    score: 91.2,
+    reasonSummary: "Strong backend fit",
+    createdAt: "2026-02-12T11:00:00.000Z",
+    callbackDecision: "approve"
+  });
+
+  const notificationsResponse = await app.inject({
+    method: "GET",
+    url: "/users/u-vis/notifications"
+  });
+  assert.equal(notificationsResponse.statusCode, 200);
+  assert.equal(JSON.parse(notificationsResponse.body).notifications[0].status, "sent");
+
+  const applicationsResponse = await app.inject({
+    method: "GET",
+    url: "/users/u-vis/applications"
+  });
+  assert.equal(applicationsResponse.statusCode, 200);
+  assert.equal(JSON.parse(applicationsResponse.body).applications[0].status, "applied");
+
+  const funnelResponse = await app.inject({
+    method: "GET",
+    url: "/users/u-vis/funnel"
+  });
+  assert.equal(funnelResponse.statusCode, 200);
+  assert.deepEqual(JSON.parse(funnelResponse.body), {
+    userId: "u-vis",
+    funnel: {
+      matched: 2,
+      notified: 1,
+      approved: 1,
+      applied: 1
     }
   });
 

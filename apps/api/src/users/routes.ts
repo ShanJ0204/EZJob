@@ -5,6 +5,11 @@ type UserParams = {
   userId: string;
 };
 
+type UserMatchesQuerystring = {
+  decision?: string;
+  limit?: string;
+};
+
 type UserPreferenceRecord = Awaited<ReturnType<PrismaClient["userPreference"]["findUnique"]>>;
 type CandidateProfileRecord = Awaited<ReturnType<PrismaClient["candidateProfile"]["findUnique"]>>;
 
@@ -284,7 +289,175 @@ const mapProfileResponse = (userId: string, profile: CandidateProfileRecord) => 
 const forbidden = (reply: FastifyReply) =>
   reply.code(403).send({ error: "Forbidden: cannot mutate another user's data." });
 
+const parseLimit = (value: string | undefined): number => {
+  if (value === undefined) {
+    return 25;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+    throw new Error("limit must be an integer between 1 and 100.");
+  }
+
+  return parsed;
+};
+
 export const registerUserSetupRoutes = (app: FastifyInstance, db: PrismaClient): void => {
+  app.get<{ Params: UserParams; Querystring: UserMatchesQuerystring }>("/users/:userId/matches", async (request, reply) => {
+    try {
+      const limit = parseLimit(request.query.limit);
+      const decision = request.query.decision?.trim();
+
+      const matches = await db.matchResult.findMany({
+        where: {
+          userId: request.params.userId,
+          ...(decision
+            ? {
+                notificationEvents: {
+                  some: {
+                    decision
+                  }
+                }
+              }
+            : {})
+        },
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: limit,
+        include: {
+          notificationEvents: {
+            orderBy: {
+              createdAt: "desc"
+            },
+            take: 1
+          }
+        }
+      });
+
+      return reply.code(200).send({
+        userId: request.params.userId,
+        count: matches.length,
+        matches: matches.map((match: (typeof matches)[number]) => ({
+          id: match.id,
+          jobPostingId: match.jobPostingId,
+          score: Number(match.score),
+          reasonSummary: match.reasonSummary,
+          createdAt: match.createdAt,
+          callbackDecision: match.notificationEvents[0]?.decision ?? null
+        }))
+      });
+    } catch (error) {
+      request.log.error({ err: error }, "failed to list user matches");
+      return reply.code(400).send({
+        error: error instanceof Error ? error.message : "Invalid request"
+      });
+    }
+  });
+
+  app.get<{ Params: UserParams }>("/users/:userId/notifications", async (request, reply) => {
+    const notifications = await db.notificationEvent.findMany({
+      where: { userId: request.params.userId },
+      orderBy: {
+        createdAt: "desc"
+      },
+      include: {
+        matchResult: {
+          select: {
+            score: true,
+            reasonSummary: true
+          }
+        }
+      }
+    });
+
+    return reply.code(200).send({
+      userId: request.params.userId,
+      count: notifications.length,
+      notifications: notifications.map((notification: (typeof notifications)[number]) => ({
+        id: notification.id,
+        matchResultId: notification.matchResultId,
+        status: notification.status,
+        callbackDecision: notification.decision,
+        eventType: notification.eventType,
+        sentAt: notification.sentAt,
+        createdAt: notification.createdAt,
+        score: notification.matchResult ? Number(notification.matchResult.score) : null,
+        reasonSummary: notification.matchResult?.reasonSummary ?? null
+      }))
+    });
+  });
+
+  app.get<{ Params: UserParams }>("/users/:userId/applications", async (request, reply) => {
+    const applications = await db.applicationAttempt.findMany({
+      where: { userId: request.params.userId },
+      orderBy: {
+        attemptedAt: "desc"
+      },
+      include: {
+        matchResult: {
+          select: {
+            score: true,
+            reasonSummary: true
+          }
+        }
+      }
+    });
+
+    return reply.code(200).send({
+      userId: request.params.userId,
+      count: applications.length,
+      applications: applications.map((application: (typeof applications)[number]) => ({
+        id: application.id,
+        jobPostingId: application.jobPostingId,
+        matchResultId: application.matchResultId,
+        status: application.status,
+        attemptedAt: application.attemptedAt,
+        completedAt: application.completedAt,
+        score: application.matchResult ? Number(application.matchResult.score) : null,
+        reasonSummary: application.matchResult?.reasonSummary ?? null
+      }))
+    });
+  });
+
+  app.get<{ Params: UserParams }>("/users/:userId/funnel", async (request, reply) => {
+    const [matched, notified, approved, applied] = await Promise.all([
+      db.matchResult.count({
+        where: {
+          userId: request.params.userId
+        }
+      }),
+      db.notificationEvent.count({
+        where: {
+          userId: request.params.userId,
+          status: "sent"
+        }
+      }),
+      db.notificationEvent.count({
+        where: {
+          userId: request.params.userId,
+          decision: "approve"
+        }
+      }),
+      db.applicationAttempt.count({
+        where: {
+          userId: request.params.userId,
+          status: "applied"
+        }
+      })
+    ]);
+
+    return reply.code(200).send({
+      userId: request.params.userId,
+      funnel: {
+        matched,
+        notified,
+        approved,
+        applied
+      }
+    });
+  });
+
   app.get<{ Params: UserParams }>("/users/:userId/preferences", async (request, reply) => {
     const preferences = await db.userPreference.findUnique({
       where: { userId: request.params.userId }
