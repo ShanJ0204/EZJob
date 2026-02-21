@@ -276,25 +276,31 @@ startxref
         return success
 
     def test_ingestion_with_sources(self):
-        """Test POST /api/ingestion/run - Should return sources array with both Remotive and WeWorkRemotely"""
-        self.log("⚠️ Ingestion may take time and hit external APIs (Remotive + WeWorkRemotely)")
-        success, response = self.run_test("Trigger Ingestion (Multi-Source)", "POST", "api/ingestion/run", 200)
+        """Test POST /api/ingestion/run - Should return sources array with 6 sources (NEW: hackernews, indeed, linkedin, github_jobs)"""
+        self.log("⚠️ Ingestion may take time and hit external APIs (6 sources: remotive, weworkremotely, hackernews, indeed, linkedin, github_jobs)")
+        success, response = self.run_test("Trigger Ingestion (6-Source)", "POST", "api/ingestion/run", 200)
         if success:
             sources = response.get('sources', [])
             source_names = [s.get('source') for s in sources]
             self.log(f"Sources found: {source_names}")
             
-            # Check if both sources are present
-            expected_sources = ['remotive', 'weworkremotely']
+            # Check all 6 expected sources (some may return 0 due to rate limiting)
+            expected_sources = ['remotive', 'weworkremotely', 'hackernews', 'indeed', 'linkedin', 'github_jobs']
+            sources_found = 0
             for expected in expected_sources:
                 if expected in source_names:
-                    self.log(f"✅ Found expected source: {expected}")
+                    source_data = next(s for s in sources if s.get('source') == expected)
+                    fetched = source_data.get('fetched', 0)
+                    inserted = source_data.get('inserted', 0)
+                    self.log(f"✅ Found {expected}: {fetched} fetched, {inserted} inserted")
+                    sources_found += 1
                 else:
                     self.log(f"⚠️ Missing expected source: {expected}")
             
             total_fetched = response.get('total_fetched', 0)
             self.log(f"Total jobs fetched: {total_fetched}")
-            return True
+            self.log(f"Sources operating: {sources_found}/6 (some may return 0 due to rate limits)")
+            return sources_found >= 4  # Accept if at least 4 sources work (rate limiting expected)
         return success
 
     def test_ingestion_stats(self):
