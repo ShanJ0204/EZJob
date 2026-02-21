@@ -21,7 +21,7 @@ export interface SendMessageResult {
 }
 
 export interface CallbackPayload {
-  userId: string;
+  userId?: string;
   matchResultId: string;
   messageId: string;
   action: NotificationAction;

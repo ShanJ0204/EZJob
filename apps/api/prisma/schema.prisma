@@ -177,6 +177,25 @@ model NotificationEvent {
   @@map("notification_events")
 }
 
+
+model IngestionRun {
+  id                  String   @id @default(uuid()) @db.Uuid
+  source              String
+  sourceType          String   @map("source_type")
+  startedAt           DateTime @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime @map("completed_at") @db.Timestamptz(6)
+  durationMs          Int      @map("duration_ms")
+  fetchedCount        Int      @map("fetched_count")
+  insertedCount       Int      @map("inserted_count")
+  exactDuplicateCount Int      @map("exact_duplicate_count")
+  fuzzyDuplicateCount Int      @map("fuzzy_duplicate_count")
+  errors              Json?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([source, startedAt(sort: Desc)], map: "idx_ingestion_runs_source_started_at")
+  @@map("ingestion_runs")
+}
+
 model ApplicationAttempt {
   id                    String        @id @default(uuid()) @db.Uuid
   userId                String        @map("user_id") @db.Uuid
@@ -202,3 +221,4 @@ model ApplicationAttempt {
   @@index([jobPostingId, status], map: "idx_application_attempts_job_status")
   @@map("application_attempts")
 }
+

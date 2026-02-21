@@ -16,11 +16,32 @@ const CALLBACK_EVENT_TYPE = "match_alert.callback";
 const DECISION_EVENT_TYPE = "match_alert.decision";
 
 const mapReasonDetails = (reasonDetails: Prisma.JsonValue | null): string[] => {
-  if (!Array.isArray(reasonDetails)) {
+  if (!reasonDetails || typeof reasonDetails !== "object") {
     return [];
   }
 
-  return reasonDetails.filter((item): item is string => typeof item === "string");
+  if (Array.isArray(reasonDetails)) {
+    return reasonDetails.filter((item): item is string => typeof item === "string");
+  }
+
+  const asObject = reasonDetails as Record<string, unknown>;
+  const reasonItems = Array.isArray(asObject.reasons)
+    ? asObject.reasons
+    : [];
+
+  return reasonItems
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return undefined;
+      }
+
+      const entry = item as Record<string, unknown>;
+      const label = typeof entry.label === "string" ? entry.label : "Reason";
+      const value = typeof entry.value === "number" ? ` (${entry.value})` : "";
+      const detail = typeof entry.detail === "string" ? entry.detail : "";
+      return `${label}${value}: ${detail}`.trim();
+    })
+    .filter((value): value is string => Boolean(value));
 };
 
 const getHourInTimeZone = (timeZone: string, date: Date): number => {
@@ -151,18 +172,33 @@ export class NotificationService {
   }
 
   public async captureCallback(payload: CallbackPayload): Promise<{ status: string }> {
-    await this.logEvent(payload.userId, payload.matchResultId, CALLBACK_EVENT_TYPE, CALLBACK_STATUS, asJsonObject({
+    const userId = payload.userId ?? await this.resolveUserId(payload.matchResultId);
+
+    await this.logEvent(userId, payload.matchResultId, CALLBACK_EVENT_TYPE, CALLBACK_STATUS, asJsonObject({
       action: payload.action,
       metadata: payload.metadata ? asJsonObject(payload.metadata) : null,
     }), "bot", undefined, payload.messageId, payload.action);
 
-    await this.logEvent(payload.userId, payload.matchResultId, DECISION_EVENT_TYPE, DECISION_CAPTURED_STATUS, asJsonObject({
+    await this.logEvent(userId, payload.matchResultId, DECISION_EVENT_TYPE, DECISION_CAPTURED_STATUS, asJsonObject({
       decision: payload.action,
       messageId: payload.messageId,
       metadata: payload.metadata ? asJsonObject(payload.metadata) : null,
     }), "bot", undefined, payload.messageId, payload.action);
 
     return { status: DECISION_CAPTURED_STATUS };
+  }
+
+  private async resolveUserId(matchResultId: string): Promise<string> {
+    const result = await prisma.matchResult.findUnique({
+      where: { id: matchResultId },
+      select: { userId: true }
+    });
+
+    if (!result?.userId) {
+      throw new Error("Unable to resolve callback user for match result");
+    }
+
+    return result.userId;
   }
 
   private async logEvent(
