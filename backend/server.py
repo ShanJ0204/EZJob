@@ -438,12 +438,25 @@ async def get_analytics(user=Depends(get_current_user)):
 
     # Match trend by date (last 30 days)
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    recent = [m for m in all_matches if m.get("created_at") and (m["created_at"] if isinstance(m["created_at"], datetime) else datetime.fromisoformat(str(m["created_at"]))) >= thirty_days_ago]
+    recent = []
+    for m in all_matches:
+        if m.get("created_at"):
+            dt = m["created_at"]
+            if isinstance(dt, str):
+                dt = datetime.fromisoformat(dt)
+            # Ensure timezone info
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt >= thirty_days_ago:
+                recent.append(m)
+    
     daily_counts = {}
     for m in recent:
         dt = m["created_at"]
         if isinstance(dt, str):
             dt = datetime.fromisoformat(dt)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
         day = dt.strftime("%Y-%m-%d")
         daily_counts[day] = daily_counts.get(day, 0) + 1
     match_trend = [{"date": k, "count": v} for k, v in sorted(daily_counts.items())]
