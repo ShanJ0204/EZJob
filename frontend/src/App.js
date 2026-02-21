@@ -64,11 +64,17 @@ function ProtectedRoute({ children }) {
 }
 
 function AppRouter() {
+  const { loading } = useAuth();
   const location = useLocation();
 
   // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
   if (location.hash?.includes('session_id=')) {
     return <AuthCallback />;
+  }
+
+  // Show login immediately without waiting for auth check
+  if (location.pathname === '/' && loading) {
+    return <Login />;
   }
 
   return (
