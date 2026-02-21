@@ -7,6 +7,7 @@ import { RemotiveApiConnector } from "./ingestion/connectors/remotive-api.connec
 import { WeWorkRemotelyRssConnector } from "./ingestion/connectors/weworkremotely-rss.connector.js";
 import { IngestionService } from "./ingestion/service.js";
 import type { IngestionRunMetadata } from "./ingestion/types.js";
+import { MatchingWorker, type NotificationJobData } from "./matching/index.js";
 
 const concurrency = Number(process.env.WORKER_CONCURRENCY ?? 5);
 const ingestionPollIntervalMs = Number(process.env.INGESTION_POLL_INTERVAL_MS ?? 60_000);
@@ -59,10 +60,25 @@ const matchingQueue = new Queue<MatchingJobData>(QUEUE_NAMES.matching, {
   }
 });
 
+const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAMES.notification, {
+  connection: queueConnection,
+  defaultJobOptions: {
+    attempts: 5,
+    backoff: {
+      type: "exponential",
+      delay: 1_000
+    },
+    removeOnComplete: 100,
+    removeOnFail: 200
+  }
+});
+
 const ingestionService = new IngestionService([
   new RemotiveApiConnector(),
   new WeWorkRemotelyRssConnector()
 ]);
+
+const matchingProcessor = new MatchingWorker(notificationQueue);
 
 type IngestionJobData = {
   cycleId: string;
@@ -118,10 +134,10 @@ const matchingWorker = new Worker<MatchingJobData>(
   async (job) => {
     console.log(`[cycle:${job.data.cycleId}] matching phase start`);
 
-    const matchedCount = 0;
+    const matchingSummary = await matchingProcessor.runCycle();
     const summary = {
       ...job.data.ingestionSummary,
-      matchedCount
+      ...matchingSummary
     };
 
     console.log(`[cycle:${job.data.cycleId}] matching phase end`, summary);
@@ -195,6 +211,8 @@ const shutdown = async (signal: string): Promise<void> => {
     matchingWorker.close(),
     ingestionQueue.close(),
     matchingQueue.close(),
+    notificationQueue.close(),
+    matchingProcessor.close(),
     redis.quit(),
     queueConnection.quit()
   ]);

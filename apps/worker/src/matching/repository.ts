@@ -4,7 +4,7 @@ import type { MatchResultRecord } from "./types.js";
 const { Pool } = pg;
 
 export interface MatchResultRepository {
-  save(result: MatchResultRecord): Promise<void>;
+  save(result: MatchResultRecord): Promise<string>;
 }
 
 export class PostgresMatchResultRepository implements MatchResultRepository {
@@ -18,7 +18,7 @@ export class PostgresMatchResultRepository implements MatchResultRepository {
     this.pool = new Pool({ connectionString: databaseUrl });
   }
 
-  async save(result: MatchResultRecord): Promise<void> {
+  async save(result: MatchResultRecord): Promise<string> {
     const reasonDetails = {
       ...result.reasonDetails,
       decision: result.decision,
@@ -28,7 +28,7 @@ export class PostgresMatchResultRepository implements MatchResultRepository {
       ]
     };
 
-    await this.pool.query(
+    const queryResult = await this.pool.query<{ id: string }>(
       `
       INSERT INTO match_results (
         user_id,
@@ -45,6 +45,7 @@ export class PostgresMatchResultRepository implements MatchResultRepository {
         reason_summary = EXCLUDED.reason_summary,
         reason_details = EXCLUDED.reason_details,
         created_at = now()
+      RETURNING id
       `,
       [
         result.userId,
@@ -55,6 +56,8 @@ export class PostgresMatchResultRepository implements MatchResultRepository {
         JSON.stringify(reasonDetails)
       ]
     );
+
+    return queryResult.rows[0].id;
   }
 
   async close(): Promise<void> {

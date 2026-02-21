@@ -31,7 +31,7 @@ export class MatchingService {
       }
     };
 
-    await this.repository.save(result);
-    return result;
+    const matchResultId = await this.repository.save(result);
+    return { ...result, id: matchResultId };
   }
 }
