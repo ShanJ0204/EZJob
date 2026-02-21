@@ -379,15 +379,154 @@ async def match_action(match_id: str, body: MatchAction, user=Depends(get_curren
     await db.match_results.update_one({"match_id": match_id}, {"$set": {"status": body.action + "d", "updated_at": datetime.now(timezone.utc)}})
     if body.action == "approve":
         job = await db.job_postings.find_one({"posting_id": match["job_posting_id"]}, {"_id": 0})
+        profile = await db.candidate_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
         attempt_id = f"app_{uuid.uuid4().hex[:12]}"
         await db.application_attempts.insert_one({
             "attempt_id": attempt_id, "user_id": user["user_id"], "job_posting_id": match["job_posting_id"],
             "match_id": match_id, "status": "ready", "job_url": job.get("source_url", "") if job else "",
             "job_title": job.get("title", "") if job else "", "company_name": job.get("company_name", "") if job else "",
+            "cover_letter": None, "cover_letter_status": "generating",
             "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
         })
+        # Generate cover letter in background
+        asyncio.create_task(generate_cover_letter_bg(attempt_id, user["user_id"], profile, job, match))
         return {"status": "approved", "application": {"attempt_id": attempt_id, "job_url": job.get("source_url", "") if job else ""}}
     return {"status": "rejected"}
+
+# ── Cover Letter Generation ──────────────────────────────
+async def generate_cover_letter_bg(attempt_id, user_id, profile, job, match):
+    try:
+        cover_letter = await generate_cover_letter(profile, job, match)
+        await db.application_attempts.update_one(
+            {"attempt_id": attempt_id},
+            {"$set": {"cover_letter": cover_letter, "cover_letter_status": "ready", "updated_at": datetime.now(timezone.utc)}},
+        )
+    except Exception as e:
+        print(f"Cover letter generation error: {e}")
+        await db.application_attempts.update_one(
+            {"attempt_id": attempt_id},
+            {"$set": {"cover_letter_status": "failed", "updated_at": datetime.now(timezone.utc)}},
+        )
+
+async def generate_cover_letter(profile, job, match):
+    if not EMERGENT_LLM_KEY:
+        return fallback_cover_letter(profile, job)
+
+    candidate_parts = []
+    if profile:
+        if profile.get("full_name"):
+            candidate_parts.append(f"Name: {profile['full_name']}")
+        if profile.get("years_experience"):
+            candidate_parts.append(f"Experience: {profile['years_experience']} years")
+        if profile.get("summary"):
+            candidate_parts.append(f"Summary: {profile['summary']}")
+        if profile.get("resume_text"):
+            candidate_parts.append(f"Resume:\n{profile['resume_text'][:3000]}")
+
+    job_parts = []
+    if job:
+        job_parts.append(f"Title: {job.get('title', '')}")
+        job_parts.append(f"Company: {job.get('company_name', '')}")
+        if job.get("location_text"):
+            job_parts.append(f"Location: {job['location_text']}")
+        desc = (job.get("description", "") or "")[:2000]
+        if desc:
+            job_parts.append(f"Description: {desc}")
+
+    match_context = ""
+    if match:
+        match_context = f"\nMatch Score: {match.get('score', 'N/A')}/100\nMatch Reasons: {match.get('reason_summary', '')}"
+
+    prompt = f"""Write a professional, tailored cover letter for this job application.
+
+Candidate Info:
+{chr(10).join(candidate_parts) if candidate_parts else 'No profile info available'}
+{match_context}
+
+Job Posting:
+{chr(10).join(job_parts)}
+
+Requirements:
+- Professional but warm tone
+- 3-4 concise paragraphs
+- Highlight relevant skills and experience that match the job
+- Reference the company by name
+- Show enthusiasm for the role
+- Keep under 400 words
+- Do NOT include placeholder text like [Your Name] — use the candidate's actual name if available
+- Do NOT include addresses or dates — just the letter body"""
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"cover_{uuid.uuid4().hex[:8]}",
+            system_message="You are a professional career coach. Write tailored, compelling cover letters that highlight the candidate's relevant strengths.",
+        )
+        chat.with_model("openai", "gpt-5.2")
+        response = await chat.send_message(UserMessage(text=prompt))
+        return response.strip()
+    except Exception as e:
+        print(f"Cover letter LLM error: {e}")
+        return fallback_cover_letter(profile, job)
+
+def fallback_cover_letter(profile, job):
+    name = profile.get("full_name", "the candidate") if profile else "the candidate"
+    title = job.get("title", "this position") if job else "this position"
+    company = job.get("company_name", "your company") if job else "your company"
+    summary = profile.get("summary", "") if profile else ""
+    exp = profile.get("years_experience", "") if profile else ""
+
+    letter = f"Dear Hiring Manager,\n\n"
+    letter += f"I am writing to express my strong interest in the {title} position at {company}. "
+    if exp:
+        letter += f"With {exp} years of professional experience, I am confident in my ability to contribute meaningfully to your team.\n\n"
+    else:
+        letter += f"I am confident that my skills and experience make me a strong candidate for this role.\n\n"
+    if summary:
+        letter += f"{summary}\n\n"
+    letter += f"I am excited about the opportunity to bring my expertise to {company} and contribute to your continued success. "
+    letter += f"I look forward to discussing how my background aligns with your needs.\n\n"
+    letter += f"Best regards,\n{name}"
+    return letter
+
+@app.post("/api/cover-letter/generate")
+async def generate_cover_letter_endpoint(match_id: str = None, attempt_id: str = None, user=Depends(get_current_user)):
+    profile = await db.candidate_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    job = None
+    match = None
+
+    if match_id:
+        match = await db.match_results.find_one({"match_id": match_id, "user_id": user["user_id"]}, {"_id": 0})
+        if match:
+            job = await db.job_postings.find_one({"posting_id": match.get("job_posting_id")}, {"_id": 0})
+    elif attempt_id:
+        attempt = await db.application_attempts.find_one({"attempt_id": attempt_id, "user_id": user["user_id"]}, {"_id": 0})
+        if attempt:
+            job = await db.job_postings.find_one({"posting_id": attempt.get("job_posting_id")}, {"_id": 0})
+            match = await db.match_results.find_one({"match_id": attempt.get("match_id")}, {"_id": 0})
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found for this match/application")
+
+    cover_letter = await generate_cover_letter(profile, job, match)
+
+    if attempt_id:
+        await db.application_attempts.update_one(
+            {"attempt_id": attempt_id},
+            {"$set": {"cover_letter": cover_letter, "cover_letter_status": "ready", "updated_at": datetime.now(timezone.utc)}},
+        )
+
+    return {"cover_letter": cover_letter}
+
+@app.get("/api/applications/{attempt_id}/cover-letter")
+async def get_cover_letter(attempt_id: str, user=Depends(get_current_user)):
+    attempt = await db.application_attempts.find_one({"attempt_id": attempt_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return {
+        "cover_letter": attempt.get("cover_letter"),
+        "status": attempt.get("cover_letter_status", "none"),
+    }
 
 # ── Applications ─────────────────────────────────────────
 @app.get("/api/applications")
