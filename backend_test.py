@@ -165,19 +165,31 @@ class EZJobAPITester:
         return self.run_test("Get Applications", "GET", "api/applications", 200)
 
     def test_match_actions(self):
-        """Test match approve/reject actions"""
+        """Test match approve/reject actions and cover letter generation"""
         # First get matches to find a match to test with
         success, matches_data = self.run_test("Get Matches for Actions", "GET", "api/matches", 200)
         if success and matches_data.get("matches"):
             match_id = matches_data["matches"][0].get("match_id")
             if match_id:
-                # Test approve action
+                # Test approve action (should trigger cover letter generation)
                 approve_success, approve_data = self.run_test("Match Approve Action", "POST", f"api/matches/{match_id}/action", 200, {"action": "approve"})
                 
-                # If we have an application, test mark as applied
+                # If we have an application, test cover letter features
                 if approve_success and approve_data.get("application", {}).get("attempt_id"):
                     attempt_id = approve_data["application"]["attempt_id"]
+                    self.log(f"✅ Application created: {attempt_id}")
+                    
+                    # Test getting cover letter status
+                    self.test_get_cover_letter(attempt_id)
+                    
+                    # Test generating cover letter on demand
+                    self.test_generate_cover_letter_by_attempt(attempt_id)
+                    
+                    # Mark as applied
                     self.run_test("Mark Application Applied", "POST", f"api/applications/{attempt_id}/mark-applied", 200)
+                    
+                    # Store attempt_id for later tests
+                    self.created_attempt_id = attempt_id
                 
                 return True
             else:
@@ -186,6 +198,48 @@ class EZJobAPITester:
         else:
             self.log("⚠️ No matches found to test actions with")
             return True  # Not a failure, just no data
+
+    def test_get_cover_letter(self, attempt_id):
+        """Test GET /api/applications/{attempt_id}/cover-letter"""
+        success, response = self.run_test("Get Cover Letter", "GET", f"api/applications/{attempt_id}/cover-letter", 200)
+        if success:
+            status = response.get("status", "none")
+            cover_letter = response.get("cover_letter")
+            self.log(f"Cover letter status: {status}")
+            if cover_letter:
+                self.log(f"Cover letter length: {len(cover_letter)} characters")
+            else:
+                self.log("Cover letter: None (may still be generating)")
+        return success
+
+    def test_generate_cover_letter_by_attempt(self, attempt_id):
+        """Test POST /api/cover-letter/generate with attempt_id"""
+        success, response = self.run_test("Generate Cover Letter (by attempt)", "POST", f"api/cover-letter/generate?attempt_id={attempt_id}", 200)
+        if success:
+            cover_letter = response.get("cover_letter")
+            if cover_letter:
+                self.log(f"Generated cover letter length: {len(cover_letter)} characters")
+            else:
+                self.log("⚠️ No cover letter in response")
+        return success
+
+    def test_generate_cover_letter_by_match(self):
+        """Test POST /api/cover-letter/generate with match_id"""
+        # Get a match first
+        success, matches_data = self.run_test("Get Matches for Cover Letter", "GET", "api/matches", 200)
+        if success and matches_data.get("matches"):
+            match_id = matches_data["matches"][0].get("match_id")
+            if match_id:
+                success, response = self.run_test("Generate Cover Letter (by match)", "POST", f"api/cover-letter/generate?match_id={match_id}", 200)
+                if success:
+                    cover_letter = response.get("cover_letter")
+                    if cover_letter:
+                        self.log(f"Generated cover letter length: {len(cover_letter)} characters")
+                    else:
+                        self.log("⚠️ No cover letter in response")
+                return success
+        self.log("⚠️ No matches available for cover letter generation")
+        return True  # Not a failure
 
     def test_resume_upload(self):
         """Test POST /api/resume/upload - Upload PDF file"""
