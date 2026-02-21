@@ -101,5 +101,6 @@ export const normalizeJobPosting = (input: RawJobPostingInput): JobPosting => {
 export const QUEUE_NAMES = {
   ingestion: "ingestion",
   matching: "matching",
+  notification: "notification",
   apply: "apply"
 } as const;
