@@ -7,6 +7,7 @@ import Matches from './pages/Matches';
 import Preferences from './pages/Preferences';
 import Profile from './pages/Profile';
 import Applications from './pages/Applications';
+import Analytics from './pages/Analytics';
 import Layout from './components/Layout';
 
 const AuthContext = createContext(null);
@@ -78,6 +79,7 @@ function AppRouter() {
       <Route path="/preferences" element={<ProtectedRoute><Layout><Preferences /></Layout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
       <Route path="/applications" element={<ProtectedRoute><Layout><Applications /></Layout></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><Layout><Analytics /></Layout></ProtectedRoute>} />
     </Routes>
   );
 }

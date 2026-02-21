@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
-import { LayoutDashboard, Target, Settings, User, Briefcase, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, Target, Settings, User, Briefcase, LogOut, Zap, BarChart3 } from 'lucide-react';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/matches', label: 'Matches', icon: Target },
   { to: '/applications', label: 'Applications', icon: Briefcase },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/preferences', label: 'Preferences', icon: Settings },
   { to: '/profile', label: 'Profile', icon: User },
 ];
