@@ -15,6 +15,7 @@ export const useAuth = () => useContext(AuthContext);
 
 function AuthCallback() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
   const processed = React.useRef(false);
 
   useEffect(() => {
@@ -30,12 +31,13 @@ function AuthCallback() {
 
     api.exchangeSession(sessionId)
       .then((user) => {
-        navigate('/dashboard', { state: { user } });
+        setUser(user);
+        navigate('/dashboard', { replace: true });
       })
       .catch(() => {
         navigate('/');
       });
-  }, [navigate]);
+  }, [navigate, setUser]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
