@@ -3,23 +3,48 @@ import assert from "node:assert/strict";
 
 import { TelegramNotificationBot } from "./bot.js";
 
+<<<<<<< codex/explore-feasibility-of-job-scraping-bot
+test("Telegram callback data round-trips with signature validation", () => {
+  const bot = new TelegramNotificationBot("token-123", "chat-1", undefined, "secret-1");
+
+  const callbackData = bot.buildCallbackData({
+=======
 test("Telegram callback data round-trips", () => {
   const bot = new TelegramNotificationBot("token-123", "chat-1");
 
   const callbackData = bot.buildCallbackData({
     userId: "user-1",
+>>>>>>> main
     matchResultId: "f2f0fca8-77e9-49f9-9825-c986f4ca1f73",
     action: "Approve"
   });
 
+<<<<<<< codex/explore-feasibility-of-job-scraping-bot
+  const parsed = TelegramNotificationBot.parseCallbackData(callbackData, "secret-1");
+  assert.deepEqual(parsed, {
+=======
   const parsed = TelegramNotificationBot.parseCallbackData(callbackData);
   assert.deepEqual(parsed, {
     userId: "user-1",
+>>>>>>> main
     matchResultId: "f2f0fca8-77e9-49f9-9825-c986f4ca1f73",
     action: "Approve"
   });
 });
 
+<<<<<<< codex/explore-feasibility-of-job-scraping-bot
+test("Telegram callback data fails when signature is tampered", () => {
+  const bot = new TelegramNotificationBot("token-123", "chat-1", undefined, "secret-1");
+
+  const callbackData = bot.buildCallbackData({
+    matchResultId: "f2f0fca8-77e9-49f9-9825-c986f4ca1f73",
+    action: "Approve"
+  });
+
+  const tampered = `${callbackData.slice(0, -1)}0`;
+  const parsed = TelegramNotificationBot.parseCallbackData(tampered, "secret-1");
+  assert.equal(parsed, undefined);
+=======
 test("Telegram sendMessage retries on 429 and eventually succeeds", async () => {
   const bot = new TelegramNotificationBot("token-123", "chat-1");
   const originalFetch = global.fetch;
@@ -61,4 +86,5 @@ test("Telegram sendMessage retries on 429 and eventually succeeds", async () => 
   } finally {
     global.fetch = originalFetch;
   }
+>>>>>>> main
 });

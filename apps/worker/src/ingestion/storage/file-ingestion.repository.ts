@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { JobPosting } from "@ezjob/common";
-import type { IngestionRunMetadata } from "../types.js";
+import type { IngestionRepository, IngestionRunMetadata } from "../types.js";
 
 type IngestionStore = {
   postings: JobPosting[];
@@ -13,7 +13,7 @@ const EMPTY_STORE: IngestionStore = {
   runs: []
 };
 
-export class FileIngestionRepository {
+export class FileIngestionRepository implements IngestionRepository {
   constructor(private readonly storeFilePath: string) {}
 
   async getAllPostings(): Promise<JobPosting[]> {
@@ -21,14 +21,15 @@ export class FileIngestionRepository {
     return store.postings;
   }
 
-  async savePostings(postings: JobPosting[]): Promise<void> {
+  async savePostings(postings: JobPosting[]): Promise<number> {
     if (postings.length === 0) {
-      return;
+      return 0;
     }
 
     const store = await this.readStore();
     store.postings.push(...postings);
     await this.writeStore(store);
+    return postings.length;
   }
 
   async saveRun(metadata: IngestionRunMetadata): Promise<void> {

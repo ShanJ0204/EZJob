@@ -19,6 +19,15 @@
    npm run dev --workspace @ezjob/worker
    ```
 
+### Worker ingestion behavior
+
+- Worker now runs ingestion immediately on startup and then continuously on `INGESTION_POLL_INTERVAL_MS`.
+- If `DATABASE_URL` is set, ingestion writes to `job_postings` and `ingestion_runs` in Postgres.
+- If `DATABASE_URL` is missing, worker falls back to local file storage at `apps/worker/.data/ingestion-store.json`.
+5. Optional worker storage mode:
+   - default: `INGESTION_STORE_DRIVER=postgres`
+   - fallback local mode: `INGESTION_STORE_DRIVER=file`
+
 ## Health checks
 
 - API: `GET /health`

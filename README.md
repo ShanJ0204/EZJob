@@ -40,5 +40,5 @@ EZJob is organized as a modular monorepo to separate external APIs, async proces
 ## Next steps
 
 - Add real queue provider adapters (BullMQ/SQS/RabbitMQ).
-- Add persistent model layer and migrations.
+- Expand ingestion + matching orchestration into queue-driven workflows.
 - Add CI pipelines for lint, test, build, and release.

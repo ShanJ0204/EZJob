@@ -176,6 +176,9 @@ export class NotificationService {
   }
 
   public async captureCallback(payload: CallbackPayload): Promise<{ status: string }> {
+<<<<<<< codex/explore-feasibility-of-job-scraping-bot
+    const userId = payload.userId ?? await this.resolveUserId(payload.matchResultId);
+=======
     const matchResult = await prisma.matchResult.findUnique({
       where: { id: payload.matchResultId },
       select: {
@@ -237,6 +240,7 @@ export class NotificationService {
         resumeVariantId: matchResult.resumeVariantId ?? undefined,
       });
     }
+>>>>>>> main
 
     await this.logEvent(userId, payload.matchResultId, CALLBACK_EVENT_TYPE, CALLBACK_STATUS, asJsonObject({
       action: payload.action,
@@ -253,6 +257,19 @@ export class NotificationService {
     }), "bot", undefined, payload.messageId, payload.action);
 
     return { status: DECISION_CAPTURED_STATUS };
+  }
+
+  private async resolveUserId(matchResultId: string): Promise<string> {
+    const result = await prisma.matchResult.findUnique({
+      where: { id: matchResultId },
+      select: { userId: true }
+    });
+
+    if (!result?.userId) {
+      throw new Error("Unable to resolve callback user for match result");
+    }
+
+    return result.userId;
   }
 
   private async logEvent(

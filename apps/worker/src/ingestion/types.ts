@@ -27,3 +27,9 @@ export interface IngestionRunMetadata {
   dbDuplicateCount: number;
   errors: string[];
 }
+
+export interface IngestionRepository {
+  getAllPostings(): Promise<JobPosting[]>;
+  savePostings(postings: JobPosting[]): Promise<number>;
+  saveRun(metadata: IngestionRunMetadata): Promise<void>;
+}
