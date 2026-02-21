@@ -488,11 +488,15 @@ async def get_analytics(user=Depends(get_current_user)):
     scores = [m.get("score", 0) for m in all_matches]
     avg_score = round(sum(scores) / len(scores), 1) if scores else 0
 
-    # Top scoring matches
+    # Top scoring matches (batch job fetch)
     top_matches = sorted(all_matches, key=lambda x: x.get("score", 0), reverse=True)[:5]
+    top_job_ids = list(set(m.get("job_posting_id") for m in top_matches if m.get("job_posting_id")))
+    top_jobs_map = {}
+    if top_job_ids:
+        async for job in db.job_postings.find({"posting_id": {"$in": top_job_ids}}, {"_id": 0}):
+            top_jobs_map[job["posting_id"]] = job
     for m in top_matches:
-        job = await db.job_postings.find_one({"posting_id": m.get("job_posting_id")}, {"_id": 0})
-        m["job"] = job
+        m["job"] = top_jobs_map.get(m.get("job_posting_id"))
 
     # Application funnel
     apps = await db.application_attempts.find({"user_id": uid}, {"_id": 0}).to_list(500)
