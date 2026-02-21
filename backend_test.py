@@ -383,8 +383,8 @@ startxref
         # Dashboard and stats
         self.test_dashboard()
         
-        # === NEW: Enhanced ingestion (Remotive + WeWorkRemotely) ===
-        self.log("\n🔄 Testing Multi-Source Job Ingestion...")
+        # === NEW: Enhanced ingestion (6 sources: remotive, weworkremotely, hackernews, indeed, linkedin, github_jobs) ===
+        self.log("\n🔄 Testing 6-Source Job Ingestion...")
         self.test_ingestion_with_sources()
         self.test_ingestion_stats()
         
