@@ -8,6 +8,7 @@ import { WeWorkRemotelyRssConnector } from "./ingestion/connectors/weworkremotel
 import { IngestionService } from "./ingestion/service.js";
 import type { IngestionRunMetadata } from "./ingestion/types.js";
 import { MatchingWorker, type NotificationJobData } from "./matching/index.js";
+import { ApplyWorker, type ApplyJobData } from "./apply/worker.js";
 
 const concurrency = Number(process.env.WORKER_CONCURRENCY ?? 5);
 const ingestionPollIntervalMs = Number(process.env.INGESTION_POLL_INTERVAL_MS ?? 60_000);
@@ -73,12 +74,26 @@ const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAMES.notificatio
   }
 });
 
+const applyQueue = new Queue<ApplyJobData>(QUEUE_NAMES.apply, {
+  connection: queueConnection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 1_000
+    },
+    removeOnComplete: 100,
+    removeOnFail: 200
+  }
+});
+
 const ingestionService = new IngestionService([
   new RemotiveApiConnector(),
   new WeWorkRemotelyRssConnector()
 ]);
 
 const matchingProcessor = new MatchingWorker(notificationQueue);
+const applyProcessor = new ApplyWorker();
 
 type IngestionJobData = {
   cycleId: string;
@@ -149,12 +164,25 @@ const matchingWorker = new Worker<MatchingJobData>(
   }
 );
 
+const applyWorker = new Worker<ApplyJobData>(
+  QUEUE_NAMES.apply,
+  async (job) => applyProcessor.process(job),
+  {
+    concurrency,
+    connection: new Redis(redisUrl, { maxRetriesPerRequest: null })
+  }
+);
+
 ingestionWorker.on("failed", (job, error) => {
   console.error(`[cycle:${job?.data.cycleId ?? "unknown"}] ingestion phase failed`, error);
 });
 
 matchingWorker.on("failed", (job, error) => {
   console.error(`[cycle:${job?.data.cycleId ?? "unknown"}] matching phase failed`, error);
+});
+
+applyWorker.on("failed", (job, error) => {
+  console.error(`[apply:${job?.data.applicationAttemptId ?? "unknown"}] apply phase failed`, error);
 });
 
 const scheduleOptions: JobsOptions = {
@@ -209,10 +237,13 @@ const shutdown = async (signal: string): Promise<void> => {
   await Promise.all([
     ingestionWorker.close(),
     matchingWorker.close(),
+    applyWorker.close(),
     ingestionQueue.close(),
     matchingQueue.close(),
     notificationQueue.close(),
+    applyQueue.close(),
     matchingProcessor.close(),
+    applyProcessor.close(),
     redis.quit(),
     queueConnection.quit()
   ]);
