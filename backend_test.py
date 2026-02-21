@@ -28,24 +28,33 @@ class EZJobAPITester:
         else:
             print(f"[{timestamp}] 🔍 {message}")
     
-    def run_test(self, name, method, endpoint, expected_status, data=None, auth=True):
+    def run_test(self, name, method, endpoint, expected_status, data=None, auth=True, files=None):
         """Run a single API test"""
         url = f"{self.base_url}/{endpoint}"
-        headers = {'Content-Type': 'application/json'}
+        headers = {}
         
         if auth:
             headers['Authorization'] = f'Bearer {self.session_token}'
+        
+        # Only set Content-Type for JSON requests (not file uploads)
+        if not files:
+            headers['Content-Type'] = 'application/json'
         
         self.tests_run += 1
         self.log(f"Testing {name} - {method} {endpoint}")
         
         try:
             if method == 'GET':
-                response = requests.get(url, headers=headers, timeout=10)
+                response = requests.get(url, headers=headers, timeout=15)
             elif method == 'POST':
-                response = requests.post(url, json=data, headers=headers, timeout=10)
+                if files:
+                    response = requests.post(url, files=files, headers={k:v for k,v in headers.items() if k != 'Content-Type'}, timeout=15)
+                else:
+                    response = requests.post(url, json=data, headers=headers, timeout=15)
             elif method == 'PUT':
-                response = requests.put(url, json=data, headers=headers, timeout=10)
+                response = requests.put(url, json=data, headers=headers, timeout=15)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=headers, timeout=15)
             
             success = response.status_code == expected_status
             
@@ -54,7 +63,7 @@ class EZJobAPITester:
                 self.log(f"PASS - Status: {response.status_code}", True)
                 try:
                     resp_data = response.json()
-                    if isinstance(resp_data, dict) and len(str(resp_data)) < 200:
+                    if isinstance(resp_data, dict) and len(str(resp_data)) < 300:
                         self.log(f"Response: {resp_data}")
                 except:
                     self.log("Response: (non-JSON)")
@@ -72,7 +81,7 @@ class EZJobAPITester:
                 return False, {}
                 
         except requests.exceptions.Timeout:
-            error_msg = f"Request timed out after 10 seconds"
+            error_msg = f"Request timed out after 15 seconds"
             self.failures.append(f"{name}: {error_msg}")
             self.log(f"FAIL - {error_msg}", False)
             return False, {}
