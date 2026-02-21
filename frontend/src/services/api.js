@@ -2,7 +2,12 @@ const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 const headers = () => ({ 'Content-Type': 'application/json' });
 
 const handleResponse = async (res) => {
-  if (res.status === 401) { window.location.href = '/'; throw new Error('Unauthorized'); }
+  if (res.status === 401) {
+    if (window.location.pathname !== '/' && !window.location.hash?.includes('session_id=')) {
+      window.location.href = '/';
+    }
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) { const err = await res.json().catch(() => ({ detail: 'Request failed' })); throw new Error(err.detail || 'Request failed'); }
   return res.json();
 };
