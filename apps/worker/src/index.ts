@@ -11,9 +11,6 @@ import { MatchingWorker, type NotificationJobData } from "./matching/index.js";
 import { ApplyWorker, type ApplyJobData } from "./apply/worker.js";
 
 const concurrency = Number(process.env.WORKER_CONCURRENCY ?? 5);
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-const ingestionPollIntervalMs = Number(process.env.INGESTION_POLL_INTERVAL_MS ?? 30000);
-=======
 const ingestionPollIntervalMs = Number(process.env.INGESTION_POLL_INTERVAL_MS ?? 60_000);
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const orchestratorLockKey = process.env.ORCHESTRATION_LOCK_KEY ?? "ezjob:worker:orchestration:lock";
@@ -22,7 +19,6 @@ const instanceId = process.env.WORKER_INSTANCE_ID ?? randomUUID();
 if (!Number.isFinite(ingestionPollIntervalMs) || ingestionPollIntervalMs <= 0) {
   throw new Error("INGESTION_POLL_INTERVAL_MS must be a positive number");
 }
->>>>>>> main
 
 console.log("Starting EZJob worker service...");
 console.log("Configured queues:", QUEUE_NAMES);
@@ -96,31 +92,6 @@ const ingestionService = new IngestionService([
   new WeWorkRemotelyRssConnector()
 ]);
 
-<<<<<<< codex/explore-feasibility-of-job-scraping-bot
-let ingestionInProgress = false;
-
-const runIngestionCycle = async (): Promise<void> => {
-  if (ingestionInProgress) {
-    console.log("Skipping ingestion cycle: previous run still in progress");
-    return;
-  }
-
-  ingestionInProgress = true;
-  try {
-    const runs = await ingestionService.runOnce();
-    console.log("Ingestion completed", runs);
-  } catch (error) {
-    console.error("Ingestion cycle failed", error);
-  } finally {
-    ingestionInProgress = false;
-  }
-};
-
-await runIngestionCycle();
-setInterval(() => {
-  void runIngestionCycle();
-}, ingestionPollIntervalMs);
-=======
 const matchingProcessor = new MatchingWorker(notificationQueue);
 const applyProcessor = new ApplyWorker();
 
@@ -310,4 +281,3 @@ function summarizeRuns(runs: IngestionRunMetadata[]) {
     }
   );
 }
->>>>>>> main
