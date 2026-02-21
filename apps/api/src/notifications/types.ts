@@ -5,6 +5,7 @@ export type NotificationAction = (typeof NOTIFICATION_ACTIONS)[number];
 export interface MatchAlertPayload {
   userId: string;
   matchResultId: string;
+  correlationId?: string;
 }
 
 export interface SendMessageInput {
@@ -12,6 +13,7 @@ export interface SendMessageInput {
   matchResultId: string;
   text: string;
   actions: readonly NotificationAction[];
+  correlationId?: string;
 }
 
 export interface SendMessageResult {
@@ -26,4 +28,5 @@ export interface CallbackPayload {
   messageId: string;
   action: NotificationAction;
   metadata?: Record<string, unknown>;
+  correlationId?: string;
 }
