@@ -350,9 +350,14 @@ async def list_matches(limit: int = 50, status: Optional[str] = None, user=Depen
     if status:
         query["status"] = status
     matches = await db.match_results.find(query, {"_id": 0}).sort("score", -1).limit(limit).to_list(limit)
+    job_ids = list(set(m.get("job_posting_id") for m in matches if m.get("job_posting_id")))
+    jobs_map = {}
+    if job_ids:
+        jobs_cursor = db.job_postings.find({"posting_id": {"$in": job_ids}}, {"_id": 0})
+        async for job in jobs_cursor:
+            jobs_map[job["posting_id"]] = job
     for m in matches:
-        job = await db.job_postings.find_one({"posting_id": m.get("job_posting_id")}, {"_id": 0})
-        m["job"] = job
+        m["job"] = jobs_map.get(m.get("job_posting_id"))
     return {"matches": matches, "count": len(matches)}
 
 @app.get("/api/matches/{match_id}")
