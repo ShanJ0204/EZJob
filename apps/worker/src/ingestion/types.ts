@@ -24,6 +24,7 @@ export interface IngestionRunMetadata {
   insertedCount: number;
   exactDuplicateCount: number;
   fuzzyDuplicateCount: number;
+  dbDuplicateCount: number;
   errors: string[];
 }
 

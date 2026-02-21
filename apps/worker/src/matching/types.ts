@@ -42,6 +42,7 @@ export type MatchingJob = JobPosting & {
 };
 
 export type MatchResultRecord = {
+  id?: string;
   userId: string;
   jobPostingId: string;
   resumeVariantId?: string;

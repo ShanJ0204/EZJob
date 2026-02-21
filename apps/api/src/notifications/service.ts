@@ -2,6 +2,7 @@ import { Prisma, UserPreference } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
 import { NotificationBot } from "./bot.js";
+import { ApplyQueuePublisher } from "./apply-queue.js";
 import { buildMatchAlertMessage } from "./template.js";
 import { CallbackPayload, MatchAlertPayload, NOTIFICATION_ACTIONS, NotificationAction } from "./types.js";
 
@@ -10,6 +11,7 @@ const RATE_LIMIT_BLOCK_STATUS = "rate_limited";
 const DELIVERY_SUCCESS_STATUS = "sent";
 const CALLBACK_STATUS = "received";
 const DECISION_CAPTURED_STATUS = "captured";
+const CALLBACK_DUPLICATE_STATUS = "duplicate";
 
 const SEND_EVENT_TYPE = "match_alert.send";
 const CALLBACK_EVENT_TYPE = "match_alert.callback";
@@ -56,8 +58,6 @@ const getHourInTimeZone = (timeZone: string, date: Date): number => {
   return Number(hourPart ?? "0");
 };
 
-
-
 const asJsonObject = (value: Record<string, unknown>): Prisma.InputJsonObject =>
   value as Prisma.InputJsonObject;
 
@@ -80,7 +80,10 @@ const isWithinQuietHours = (preference: UserPreference, now: Date): boolean => {
 };
 
 export class NotificationService {
-  public constructor(private readonly bot: NotificationBot) {}
+  public constructor(
+    private readonly bot: NotificationBot,
+    private readonly applyQueuePublisher: ApplyQueuePublisher,
+  ) {}
 
   public async sendMatchAlert(payload: MatchAlertPayload): Promise<{ status: string; messageId?: string }> {
     const now = new Date();
@@ -160,6 +163,7 @@ export class NotificationService {
       matchResultId: payload.matchResultId,
       text: messageText,
       actions: NOTIFICATION_ACTIONS,
+      correlationId: payload.correlationId,
     });
 
     await this.logEvent(payload.userId, payload.matchResultId, SEND_EVENT_TYPE, DELIVERY_SUCCESS_STATUS, asJsonObject({
@@ -172,17 +176,84 @@ export class NotificationService {
   }
 
   public async captureCallback(payload: CallbackPayload): Promise<{ status: string }> {
+<<<<<<< codex/explore-feasibility-of-job-scraping-bot
     const userId = payload.userId ?? await this.resolveUserId(payload.matchResultId);
+=======
+    const matchResult = await prisma.matchResult.findUnique({
+      where: { id: payload.matchResultId },
+      select: {
+        id: true,
+        userId: true,
+        jobPostingId: true,
+        resumeVariantId: true,
+      },
+    });
+
+    if (!matchResult) {
+      throw new Error("Match result not found for callback");
+    }
+
+    const userId = payload.userId ?? matchResult.userId;
+    const telegramCallbackId =
+      typeof payload.metadata?.telegramCallbackId === "string" ? payload.metadata.telegramCallbackId : undefined;
+
+    if (telegramCallbackId) {
+      const existingCallback = await prisma.notificationEvent.findFirst({
+        where: {
+          eventType: CALLBACK_EVENT_TYPE,
+          externalMessageId: telegramCallbackId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingCallback) {
+        return { status: CALLBACK_DUPLICATE_STATUS };
+      }
+    }
+
+    let applicationAttemptId: string | undefined;
+    if (payload.action === "Approve") {
+      const applicationAttempt = await prisma.applicationAttempt.create({
+        data: {
+          userId,
+          jobPostingId: matchResult.jobPostingId,
+          resumeVariantId: matchResult.resumeVariantId,
+          matchResultId: payload.matchResultId,
+          status: "queued",
+          requestArtifactUri: JSON.stringify({
+            mode: "assisted_apply",
+            action: payload.action,
+            messageId: payload.messageId,
+            metadata: payload.metadata ?? null,
+          }),
+        },
+      });
+
+      applicationAttemptId = applicationAttempt.id;
+
+      await this.applyQueuePublisher.publishApply({
+        applicationAttemptId: applicationAttempt.id,
+        matchResultId: matchResult.id,
+        userId,
+        resumeVariantId: matchResult.resumeVariantId ?? undefined,
+      });
+    }
+>>>>>>> main
 
     await this.logEvent(userId, payload.matchResultId, CALLBACK_EVENT_TYPE, CALLBACK_STATUS, asJsonObject({
       action: payload.action,
       metadata: payload.metadata ? asJsonObject(payload.metadata) : null,
-    }), "bot", undefined, payload.messageId, payload.action);
+      correlationId: payload.correlationId ?? null,
+    }), "bot", undefined, telegramCallbackId ?? payload.messageId, payload.action);
 
     await this.logEvent(userId, payload.matchResultId, DECISION_EVENT_TYPE, DECISION_CAPTURED_STATUS, asJsonObject({
       decision: payload.action,
       messageId: payload.messageId,
+      applicationAttemptId,
       metadata: payload.metadata ? asJsonObject(payload.metadata) : null,
+      correlationId: payload.correlationId ?? null,
     }), "bot", undefined, payload.messageId, payload.action);
 
     return { status: DECISION_CAPTURED_STATUS };

@@ -33,23 +33,16 @@
 - API: `GET /health`
 - Worker: inspect process logs for startup and queue attach messages.
 
-## Ingestion persistence
-
-- Ingestion now persists to Postgres `job_postings` and `ingestion_runs` by default.
-- The worker also supports file mode (`apps/worker/.data/ingestion-store.json`) for local debugging.
-
 ## Telegram notifications
 
 1. Set the following variables in `.env`:
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_CHAT_ID_DEFAULT` or `TELEGRAM_CHAT_ID_MAP`
-   - `TELEGRAM_CALLBACK_SECRET` (used to sign callback payloads)
-   - `TELEGRAM_WEBHOOK_SECRET` (validated against Telegram webhook header)
 2. Expose your API publicly (for Telegram webhooks) and register webhook:
    ```bash
    curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
      -H "content-type: application/json" \
-     -d '{"url":"https://<your-domain>/notifications/telegram/webhook","secret_token":"'$TELEGRAM_WEBHOOK_SECRET'"}'
+     -d '{"url":"https://<your-domain>/notifications/telegram/webhook"}'
    ```
 3. Trigger alert sends via:
    - `POST /notifications/match-alerts/send`

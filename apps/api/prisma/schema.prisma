@@ -153,6 +153,7 @@ model MatchResult {
 
   @@unique([userId, jobPostingId, resumeVariantId])
   @@index([userId, score(sort: Desc), createdAt(sort: Desc)], map: "idx_match_results_user_score_created")
+  @@index([userId, createdAt(sort: Desc)], map: "idx_match_results_user_created_at")
   @@index([jobPostingId], map: "idx_match_results_job_posting")
   @@map("match_results")
 }
@@ -173,6 +174,7 @@ model NotificationEvent {
   matchResult   MatchResult? @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, createdAt(sort: Desc)], map: "idx_notification_events_user_status_created")
+  @@index([userId, decision, createdAt(sort: Desc)], map: "idx_notification_events_user_decision_created")
   @@index([externalMessageId], map: "idx_notification_events_external_message_id")
   @@map("notification_events")
 }
@@ -218,7 +220,32 @@ model ApplicationAttempt {
   matchResult           MatchResult?  @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, attemptedAt(sort: Desc)], map: "idx_application_attempts_user_status_attempted")
+  @@index([userId, attemptedAt(sort: Desc)], map: "idx_application_attempts_user_attempted_at")
   @@index([jobPostingId, status], map: "idx_application_attempts_job_status")
   @@map("application_attempts")
 }
 
+<<<<<<< codex/explore-feasibility-of-job-scraping-bot
+=======
+
+model IngestionRun {
+  id                  String   @id @default(uuid()) @db.Uuid
+  source              String
+  sourceType          String   @map("source_type")
+  startedAt           DateTime @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime @map("completed_at") @db.Timestamptz(6)
+  durationMs          Int      @map("duration_ms")
+  fetchedCount        Int      @map("fetched_count")
+  insertedCount       Int      @map("inserted_count")
+  exactDuplicateCount Int      @default(0) @map("exact_duplicate_count")
+  fuzzyDuplicateCount Int      @default(0) @map("fuzzy_duplicate_count")
+  dbDuplicateCount    Int      @default(0) @map("db_duplicate_count")
+  errors              Json?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([source, startedAt(sort: Desc)], map: "idx_ingestion_runs_source_started_at")
+  @@index([completedAt(sort: Desc)], map: "idx_ingestion_runs_completed_at")
+  @@map("ingestion_runs")
+}
+>>>>>>> main

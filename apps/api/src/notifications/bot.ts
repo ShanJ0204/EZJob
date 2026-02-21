@@ -16,6 +16,7 @@ export class ConsoleNotificationBot implements NotificationBot {
       actions: input.actions,
       messagePreview: input.text,
       messageId,
+      correlationId: input.correlationId,
     });
 
     return {
@@ -41,23 +42,6 @@ type TelegramSendMessageResponse = {
   description?: string;
 };
 
-const ACTION_TO_CODE = {
-  Review: "R",
-  "Generate Docs": "G",
-  Approve: "A",
-  Reject: "X"
-} as const;
-
-const CODE_TO_ACTION = {
-  R: "Review",
-  G: "Generate Docs",
-  A: "Approve",
-  X: "Reject"
-} as const;
-
-const signCallbackPayload = (secret: string, payload: string): string =>
-  crypto.createHmac("sha256", secret).update(payload).digest("hex").slice(0, 16);
-
 const parseChatIdMap = (raw: string | undefined): Record<string, string> => {
   if (!raw) {
     return {};
@@ -79,6 +63,27 @@ const parseChatIdMap = (raw: string | undefined): Record<string, string> => {
   }
 };
 
+const TELEGRAM_SEND_MAX_ATTEMPTS = 4;
+const BASE_BACKOFF_MS = 300;
+
+const getRetryDelayMs = (response: Response, attempt: number): number => {
+  const retryAfterHeader = response.headers.get("retry-after");
+  if (retryAfterHeader) {
+    const asNumber = Number(retryAfterHeader);
+    if (Number.isFinite(asNumber) && asNumber > 0) {
+      return asNumber * 1000;
+    }
+  }
+
+  return BASE_BACKOFF_MS * (2 ** Math.max(0, attempt - 1));
+};
+
+const sleep = async (delayMs: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+};
+
+const isRetryableStatus = (status: number): boolean => status === 429 || status >= 500;
+
 export class TelegramNotificationBot implements NotificationBot {
   private readonly token: string;
 
@@ -86,13 +91,10 @@ export class TelegramNotificationBot implements NotificationBot {
 
   private readonly chatIdByUser: Record<string, string>;
 
-  private readonly callbackSecret: string;
-
   public constructor(
     token = process.env.TELEGRAM_BOT_TOKEN,
     defaultChatId = process.env.TELEGRAM_CHAT_ID_DEFAULT,
-    chatIdMapRaw = process.env.TELEGRAM_CHAT_ID_MAP,
-    callbackSecret = process.env.TELEGRAM_CALLBACK_SECRET
+    chatIdMapRaw = process.env.TELEGRAM_CHAT_ID_MAP
   ) {
     if (!token) {
       throw new Error("TELEGRAM_BOT_TOKEN is required for TelegramNotificationBot");
@@ -101,50 +103,24 @@ export class TelegramNotificationBot implements NotificationBot {
     this.token = token;
     this.defaultChatId = defaultChatId;
     this.chatIdByUser = parseChatIdMap(chatIdMapRaw);
-    this.callbackSecret = callbackSecret ?? token;
   }
 
-  public buildCallbackData(input: { matchResultId: string; action: string }): string {
-    const actionCode = ACTION_TO_CODE[input.action as keyof typeof ACTION_TO_CODE];
-    if (!actionCode) {
-      throw new Error(`Unsupported Telegram notification action: ${input.action}`);
-    }
-
-    const unsigned = `e1|${input.matchResultId}|${actionCode}`;
-    const signature = signCallbackPayload(this.callbackSecret, unsigned);
-    return `${unsigned}|${signature}`;
+  public buildCallbackData(input: { userId: string; matchResultId: string; action: string }): string {
+    return ["ezjob", input.userId, input.matchResultId, input.action].join("|");
   }
 
-  public static parseCallbackData(
-    data: string,
-    callbackSecret = process.env.TELEGRAM_CALLBACK_SECRET ?? process.env.TELEGRAM_BOT_TOKEN
-  ):
-    | { matchResultId: string; action: string }
+  public static parseCallbackData(data: string):
+    | { userId: string; matchResultId: string; action: string }
     | undefined {
     const segments = data.split("|");
-    if (segments.length !== 4 || segments[0] !== "e1") {
-      return undefined;
-    }
-
-    const [version, matchResultId, actionCode, signature] = segments;
-    if (!callbackSecret || !matchResultId || !actionCode || !signature) {
-      return undefined;
-    }
-
-    const unsigned = `${version}|${matchResultId}|${actionCode}`;
-    const expectedSignature = signCallbackPayload(callbackSecret, unsigned);
-    if (expectedSignature !== signature) {
-      return undefined;
-    }
-
-    const action = CODE_TO_ACTION[actionCode as keyof typeof CODE_TO_ACTION];
-    if (!action) {
+    if (segments.length !== 4 || segments[0] !== "ezjob") {
       return undefined;
     }
 
     return {
-      matchResultId,
-      action
+      userId: segments[1],
+      matchResultId: segments[2],
+      action: segments[3]
     };
   }
 
@@ -160,42 +136,86 @@ export class TelegramNotificationBot implements NotificationBot {
       {
         text: action,
         callback_data: this.buildCallbackData({
+          userId: input.userId,
           matchResultId: input.matchResultId,
           action
         })
       }
     ]);
 
-    const response = await fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: input.text,
-        reply_markup: {
-          inline_keyboard: inlineKeyboard
+    for (let attempt = 1; attempt <= TELEGRAM_SEND_MAX_ATTEMPTS; attempt += 1) {
+      let response: Response;
+      try {
+        response = await fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: input.text,
+            reply_markup: {
+              inline_keyboard: inlineKeyboard
+            }
+          })
+        });
+      } catch (error) {
+        console.error("[notification-bot] telegram sendMessage network failure", {
+          correlationId: input.correlationId,
+          provider: "telegram",
+          operation: "sendMessage",
+          userId: input.userId,
+          matchResultId: input.matchResultId,
+          attempt,
+          maxAttempts: TELEGRAM_SEND_MAX_ATTEMPTS,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        if (attempt >= TELEGRAM_SEND_MAX_ATTEMPTS) {
+          throw error;
         }
-      })
-    });
 
-    if (!response.ok) {
-      throw new Error(`Telegram sendMessage failed with HTTP ${response.status}`);
-    }
-
-    const payload = (await response.json()) as TelegramSendMessageResponse;
-    if (!payload.ok || !payload.result?.message_id) {
-      throw new Error(payload.description ?? "Telegram sendMessage returned unexpected response");
-    }
-
-    return {
-      messageId: String(payload.result.message_id),
-      channel: "telegram",
-      rawResponse: {
-        chatId,
-        messageId: payload.result.message_id
+        await sleep(BASE_BACKOFF_MS * (2 ** (attempt - 1)));
+        continue;
       }
-    };
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.error("[notification-bot] telegram sendMessage http failure", {
+          correlationId: input.correlationId,
+          provider: "telegram",
+          operation: "sendMessage",
+          userId: input.userId,
+          matchResultId: input.matchResultId,
+          attempt,
+          maxAttempts: TELEGRAM_SEND_MAX_ATTEMPTS,
+          statusCode: response.status,
+          responseBody: responseText,
+        });
+
+        if (attempt < TELEGRAM_SEND_MAX_ATTEMPTS && isRetryableStatus(response.status)) {
+          await sleep(getRetryDelayMs(response, attempt));
+          continue;
+        }
+
+        throw new Error(`Telegram sendMessage failed with HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as TelegramSendMessageResponse;
+      if (!payload.ok || !payload.result?.message_id) {
+        throw new Error(payload.description ?? "Telegram sendMessage returned unexpected response");
+      }
+
+      return {
+        messageId: String(payload.result.message_id),
+        channel: "telegram",
+        rawResponse: {
+          chatId,
+          messageId: payload.result.message_id
+        }
+      };
+    }
+
+    throw new Error("Telegram sendMessage failed after retries");
   }
 }
