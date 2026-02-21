@@ -12,7 +12,7 @@ import io
 from datetime import datetime
 
 class EZJobAPITester:
-    def __init__(self, base_url="https://50cb35bc-a40e-4924-8681-27a30dba45a6.preview.emergentagent.com"):
+    def __init__(self, base_url="https://status-check-57.preview.emergentagent.com"):
         self.base_url = base_url
         self.session_token = "test_session_1771671687862"
         self.user_id = "test-user-1771671687862"
