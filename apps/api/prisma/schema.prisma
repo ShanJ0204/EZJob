@@ -153,6 +153,7 @@ model MatchResult {
 
   @@unique([userId, jobPostingId, resumeVariantId])
   @@index([userId, score(sort: Desc), createdAt(sort: Desc)], map: "idx_match_results_user_score_created")
+  @@index([userId, createdAt(sort: Desc)], map: "idx_match_results_user_created_at")
   @@index([jobPostingId], map: "idx_match_results_job_posting")
   @@map("match_results")
 }
@@ -173,6 +174,7 @@ model NotificationEvent {
   matchResult   MatchResult? @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, createdAt(sort: Desc)], map: "idx_notification_events_user_status_created")
+  @@index([userId, decision, createdAt(sort: Desc)], map: "idx_notification_events_user_decision_created")
   @@index([externalMessageId], map: "idx_notification_events_external_message_id")
   @@map("notification_events")
 }
@@ -199,6 +201,7 @@ model ApplicationAttempt {
   matchResult           MatchResult?  @relation(fields: [matchResultId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, attemptedAt(sort: Desc)], map: "idx_application_attempts_user_status_attempted")
+  @@index([userId, attemptedAt(sort: Desc)], map: "idx_application_attempts_user_attempted_at")
   @@index([jobPostingId, status], map: "idx_application_attempts_job_status")
   @@map("application_attempts")
 }
