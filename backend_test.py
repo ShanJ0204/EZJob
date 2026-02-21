@@ -2,11 +2,13 @@
 """
 EZJob Backend API Testing Suite
 Tests all API endpoints for the AI-Powered Job Matching Platform
+Including new features: Resume Upload, Notifications, Multi-Source Ingestion, Analytics
 """
 
 import requests
 import json
 import sys
+import io
 from datetime import datetime
 
 class EZJobAPITester:
