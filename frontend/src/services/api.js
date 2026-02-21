@@ -44,6 +44,15 @@ export const api = {
   getNotificationHistory: () => fetch(`${API_URL}/api/notifications/history`, { credentials: 'include' }).then(handleResponse),
   testNotification: () => fetch(`${API_URL}/api/notifications/test`, { method: 'POST', credentials: 'include' }).then(handleResponse),
 
+  // Cover letter
+  getCoverLetter: (attemptId) => fetch(`${API_URL}/api/applications/${attemptId}/cover-letter`, { credentials: 'include' }).then(handleResponse),
+  generateCoverLetter: (matchId, attemptId) => {
+    const params = new URLSearchParams();
+    if (matchId) params.set('match_id', matchId);
+    if (attemptId) params.set('attempt_id', attemptId);
+    return fetch(`${API_URL}/api/cover-letter/generate?${params}`, { method: 'POST', credentials: 'include' }).then(handleResponse);
+  },
+
   // Analytics
   getAnalytics: () => fetch(`${API_URL}/api/analytics`, { credentials: 'include' }).then(handleResponse),
 
