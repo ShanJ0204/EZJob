@@ -638,9 +638,19 @@ def fallback_score(prefs, profile, job):
     return {"score": min(score, 100), "reason_summary": "Scored based on preference matching", "reasons": reasons or [{"label": "General", "detail": "Basic keyword matching applied"}]}
 
 
-# ── Job Ingestion (Remotive + WeWorkRemotely) ────────────
+# ── Job Ingestion (6 Sources) ────────────────────────────
 REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs"
 WWR_RSS_URL = "https://weworkremotely.com/remote-jobs.rss"
+HN_ALGOLIA_URL = "https://hn.algolia.com/api/v1/search"
+INDEED_RSS_URL = "https://www.indeed.com/rss"
+LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+GITHUB_JOBS_URL = "https://github.com/trending"
+
+SCRAPER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 async def fetch_remotive_jobs():
     try:
@@ -695,11 +705,184 @@ async def fetch_weworkremotely_jobs():
         print(f"WeWorkRemotely fetch error: {e}")
         return []
 
+async def fetch_hackernews_jobs():
+    try:
+        async with httpx.AsyncClient(timeout=30) as hc:
+            resp = await hc.get(HN_ALGOLIA_URL, params={
+                "query": "Ask HN: Who is hiring?",
+                "tags": "ask_hn",
+                "numericFilters": f"created_at_i>{int((datetime.now(timezone.utc) - timedelta(days=60)).timestamp())}",
+                "hitsPerPage": 3,
+            })
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            hits = data.get("hits", [])
+            if not hits:
+                return []
+            story_id = hits[0].get("objectID")
+            if not story_id:
+                return []
+            comments_resp = await hc.get(f"https://hn.algolia.com/api/v1/items/{story_id}")
+            if comments_resp.status_code != 200:
+                return []
+            story = comments_resp.json()
+        results = []
+        children = story.get("children", [])[:100]
+        for comment in children:
+            text = comment.get("text", "")
+            if not text or len(text) < 50:
+                continue
+            comment_id = str(comment.get("id", ""))
+            lines = text.replace("<p>", "\n").split("\n")
+            first_line = re.sub(r'<[^>]+>', '', lines[0]).strip() if lines else ""
+            parts = first_line.split("|")
+            company = parts[0].strip() if parts else "Unknown"
+            title_part = parts[1].strip() if len(parts) > 1 else "Software Engineer"
+            location_part = parts[2].strip() if len(parts) > 2 else "Remote"
+            clean_desc = re.sub(r'<[^>]+>', ' ', text).strip()[:3000]
+            is_remote = "remote" in clean_desc.lower() or "remote" in location_part.lower()
+            results.append({
+                "posting_id": f"hn_{comment_id}", "source_name": "hackernews",
+                "source_job_id": comment_id,
+                "source_url": f"https://news.ycombinator.com/item?id={comment_id}",
+                "title": title_part[:200], "company_name": company[:200],
+                "location_text": location_part[:200], "is_remote": is_remote,
+                "employment_type": "full-time",
+                "description": clean_desc, "category": "tech", "tags": [],
+                "indexed_at": datetime.now(timezone.utc),
+            })
+        return results
+    except Exception as e:
+        print(f"HackerNews fetch error: {e}")
+        return []
+
+async def fetch_indeed_jobs():
+    try:
+        queries = ["remote developer", "remote software engineer", "remote data scientist"]
+        all_results = []
+        async with httpx.AsyncClient(timeout=30, headers=SCRAPER_HEADERS) as hc:
+            for q in queries:
+                try:
+                    resp = await hc.get(INDEED_RSS_URL, params={"q": q, "l": "remote", "sort": "date", "limit": 20})
+                    if resp.status_code != 200:
+                        continue
+                    feed = feedparser.parse(resp.text)
+                    for entry in feed.entries[:20]:
+                        link = entry.get("link", "")
+                        job_id = hashlib.md5(link.encode()).hexdigest()[:16]
+                        title = entry.get("title", "")
+                        company = ""
+                        source_text = entry.get("source", "")
+                        if hasattr(source_text, "value"):
+                            company = source_text.value
+                        elif isinstance(source_text, str):
+                            company = source_text
+                        desc = entry.get("summary", "") or entry.get("description", "") or ""
+                        all_results.append({
+                            "posting_id": f"indeed_{job_id}", "source_name": "indeed",
+                            "source_job_id": job_id, "source_url": link,
+                            "title": title, "company_name": company,
+                            "location_text": "Remote", "is_remote": True,
+                            "employment_type": "full-time",
+                            "description": desc[:5000], "category": "", "tags": [],
+                            "indexed_at": datetime.now(timezone.utc),
+                        })
+                except Exception:
+                    continue
+        return all_results
+    except Exception as e:
+        print(f"Indeed fetch error: {e}")
+        return []
+
+async def fetch_linkedin_jobs():
+    try:
+        results = []
+        keywords_list = ["remote software engineer", "remote developer", "remote data"]
+        async with httpx.AsyncClient(timeout=30, headers=SCRAPER_HEADERS, follow_redirects=True) as hc:
+            for keywords in keywords_list:
+                try:
+                    resp = await hc.get(LINKEDIN_JOBS_URL, params={
+                        "keywords": keywords, "location": "Worldwide",
+                        "f_WT": "2", "start": "0", "count": "25",
+                    })
+                    if resp.status_code != 200:
+                        continue
+                    html = resp.text
+                    job_cards = re.findall(r'<li[^>]*>(.*?)</li>', html, re.DOTALL)
+                    for card in job_cards[:25]:
+                        title_match = re.search(r'class="base-search-card__title[^"]*"[^>]*>([^<]+)', card)
+                        company_match = re.search(r'class="base-search-card__subtitle[^"]*"[^>]*>([^<]+)', card)
+                        location_match = re.search(r'class="job-search-card__location[^"]*"[^>]*>([^<]+)', card)
+                        link_match = re.search(r'href="(https://www\.linkedin\.com/jobs/view/[^"?]+)', card)
+                        if not title_match:
+                            continue
+                        title = title_match.group(1).strip()
+                        company = company_match.group(1).strip() if company_match else ""
+                        location = location_match.group(1).strip() if location_match else "Remote"
+                        link = link_match.group(1) if link_match else ""
+                        job_id = hashlib.md5(f"{title}{company}".encode()).hexdigest()[:16]
+                        results.append({
+                            "posting_id": f"linkedin_{job_id}", "source_name": "linkedin",
+                            "source_job_id": job_id, "source_url": link,
+                            "title": title, "company_name": company,
+                            "location_text": location, "is_remote": "remote" in location.lower(),
+                            "employment_type": "full-time",
+                            "description": f"{title} at {company} - {location}",
+                            "category": "", "tags": [],
+                            "indexed_at": datetime.now(timezone.utc),
+                        })
+                except Exception:
+                    continue
+        return results
+    except Exception as e:
+        print(f"LinkedIn fetch error: {e}")
+        return []
+
+async def fetch_github_jobs():
+    try:
+        async with httpx.AsyncClient(timeout=30, headers=SCRAPER_HEADERS, follow_redirects=True) as hc:
+            resp = await hc.get("https://www.arbeitnow.com/api/job-board-api", params={"page": "1"})
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+        results = []
+        for j in data.get("data", [])[:50]:
+            job_id = str(j.get("slug", "")) or hashlib.md5(j.get("title", "").encode()).hexdigest()[:16]
+            is_remote = j.get("remote", False)
+            results.append({
+                "posting_id": f"github_{job_id[:40]}", "source_name": "github_jobs",
+                "source_job_id": job_id[:40], "source_url": j.get("url", ""),
+                "title": j.get("title", ""), "company_name": j.get("company_name", ""),
+                "location_text": j.get("location", ""), "is_remote": is_remote,
+                "employment_type": "full-time",
+                "description": (j.get("description", "") or "")[:5000],
+                "category": "", "tags": j.get("tags", []),
+                "indexed_at": datetime.now(timezone.utc),
+            })
+        return results
+    except Exception as e:
+        print(f"GitHub Jobs fetch error: {e}")
+        return []
+
+JOB_SOURCES = [
+    ("remotive", fetch_remotive_jobs),
+    ("weworkremotely", fetch_weworkremotely_jobs),
+    ("hackernews", fetch_hackernews_jobs),
+    ("indeed", fetch_indeed_jobs),
+    ("linkedin", fetch_linkedin_jobs),
+    ("github_jobs", fetch_github_jobs),
+]
+
 async def ingest_jobs():
     all_jobs = []
     sources_results = []
-    for name, fetcher in [("remotive", fetch_remotive_jobs), ("weworkremotely", fetch_weworkremotely_jobs)]:
-        jobs = await fetcher()
+    for name, fetcher in JOB_SOURCES:
+        try:
+            jobs = await fetcher()
+        except Exception as e:
+            print(f"Source {name} failed: {e}")
+            jobs = []
         inserted = 0
         for job in jobs:
             try:
