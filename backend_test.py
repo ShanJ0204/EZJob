@@ -294,8 +294,8 @@ class EZJobAPITester:
 
     def run_all_tests(self):
         """Run all API tests in sequence"""
-        self.log("🚀 Starting EZJob Backend API Test Suite")
-        self.log("=" * 60)
+        self.log("🚀 Starting EZJob Backend API Test Suite (with New Features)")
+        self.log("=" * 70)
         
         # Basic health and auth tests
         self.test_health()
@@ -308,17 +308,38 @@ class EZJobAPITester:
         self.test_get_profile()
         self.test_update_profile()
         
+        # === NEW: Resume upload & PDF parsing ===
+        self.log("\n📄 Testing Resume Upload & PDF Parsing...")
+        self.test_resume_upload()
+        self.test_delete_resume()
+        
+        # === NEW: Notification settings ===
+        self.log("\n🔔 Testing Notification Settings...")
+        self.test_notification_settings_get()
+        self.test_notification_settings_update()
+        self.test_notification_history()
+        self.test_notification_test()
+        
         # Dashboard and stats
         self.test_dashboard()
         
-        # Job ingestion and matching (these modify data)
-        self.test_trigger_ingestion()
+        # === NEW: Enhanced ingestion (Remotive + WeWorkRemotely) ===
+        self.log("\n🔄 Testing Multi-Source Job Ingestion...")
+        self.test_ingestion_with_sources()
+        self.test_ingestion_stats()
+        
+        # LLM matching (now with resume support)
+        self.log("\n🧠 Testing LLM Matching (with resume support)...")
         self.test_run_matching()
         
         # Match and application flow
         self.test_get_matches()
         self.test_get_applications()
         self.test_match_actions()
+        
+        # === NEW: Analytics page ===
+        self.log("\n📊 Testing Analytics...")
+        self.test_analytics()
         
         # Logout test (doesn't actually affect our bearer token)
         self.test_auth_logout()
