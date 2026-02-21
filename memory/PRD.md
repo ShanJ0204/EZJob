@@ -1,75 +1,78 @@
 # EZJob - Product Requirements Document
 
 ## Original Problem Statement
-User asked "Where is this project at currently" — requesting a comprehensive status audit of the EZJob monorepo codebase.
+Build a comprehensive job-matching automation platform with:
+1. JWT/Google OAuth authentication (Emergent-managed Google social login)
+2. Candidate-facing frontend dashboard
+3. AI-powered matching with GPT-5.2 via Emergent LLM key
+4. Real apply logic (mark as ready + notify with job link)
+5. GitHub Actions CI/CD pipeline
 
 ## Architecture
-- **Monorepo**: Node.js/TypeScript with npm workspaces
-- **API** (`apps/api`): Fastify + Prisma + PostgreSQL — HTTP endpoints for users, notifications, Telegram webhooks
-- **Worker** (`apps/worker`): BullMQ + Redis + PostgreSQL — background ingestion, matching, apply pipelines
-- **Common** (`libs/common`): Zod schemas, normalization, dedup utilities
-- **Infra** (`infra`): Docker Compose (Postgres 16, Redis 7)
+- **Frontend**: React 18 + Tailwind CSS + Framer Motion (port 3000)
+- **Backend**: Python FastAPI + Motor (async MongoDB) (port 8001)
+- **Database**: MongoDB (users, sessions, preferences, profiles, job_postings, match_results, applications, ingestion_runs)
+- **LLM**: OpenAI GPT-5.2 via emergentintegrations library with Emergent LLM key
+- **Auth**: Emergent-managed Google OAuth with session cookies
+- **Legacy**: Node.js/TypeScript monorepo (apps/api, apps/worker, libs/common) — original codebase with Prisma/PostgreSQL schema, merge conflicts resolved
 
 ## User Personas
-1. **Job Seeker / Candidate** — sets preferences, uploads resumes, receives match alerts, approves/rejects matches
-2. **System Admin** — monitors ingestion runs, funnel metrics, notification delivery
+1. **Job Seeker** — logs in, sets preferences, views AI-scored matches, approves/rejects, tracks applications
+2. **System Admin** — monitors ingestion stats, job indexing, matching pipeline
 
-## Core Requirements (Static)
-- Job ingestion from external sources (Remotive API, WeWorkRemotely RSS)
-- Candidate-job matching with scoring
-- Notification delivery (Telegram, console fallback) with quiet hours & rate limiting
-- Assisted apply workflow
-- User profile & preference management
-- Read-only visibility endpoints (matches, notifications, applications, funnel)
+## Core Requirements
+- Google OAuth login via Emergent Auth
+- Dashboard with funnel stats (total matches, pending, approved, applied)
+- AI job matching: GPT-5.2 scores candidate-job pairs (0-100) with reasons
+- Job ingestion from Remotive API (automated every 5 min + manual trigger)
+- Match approve/reject with application tracking
+- User preferences: desired titles, locations, salary, remote-only, notifications
+- Candidate profile management
 
-## What's Been Implemented
-### Jan 2026 — Initial Build (15 PRs merged)
-- Monorepo scaffold with workspaces
-- Prisma schema: 10 models (Users, UserPreferences, CandidateProfiles, ResumeMasters, ResumeVariants, JobPostings, MatchResults, NotificationEvents, IngestionRuns, ApplicationAttempts)
-- 5 Prisma migrations
-- Job ingestion pipeline with 2 connectors + normalization + dedup (exact & fuzzy)
-- DB-backed ingestion persistence (PostgresIngestionRepository)
-- Matching engine with scoring module + DB persistence
-- Recurring orchestration loop (Redis-locked scheduling: ingestion → matching → notification)
-- Notification system: Telegram bot adapter with retry (429/5xx), console fallback, match alert templates, quiet hours, rate limiting
-- Telegram webhook handler with inline keyboard callbacks + dedup
-- Assisted apply flow: ApplicationAttempt lifecycle, BullMQ queue, worker processing
-- User Setup APIs: Preferences CRUD, Candidate Profile CRUD with ownership checks
-- Read-only visibility: GET matches, notifications, applications, funnel stats
-- Unit tests for bot, routes, webhook
+## What's Been Implemented (Jan 2026)
 
-### Jan 2026 — Merge Conflict Resolution
-- Resolved 10 files with git merge conflicts between `codex/explore-feasibility-of-job-scraping-bot` and `main`
-- Kept `main` branch features: BullMQ orchestration, apply queue publisher, userId in callbacks, retry logic
-- All 3 packages (api, worker, common) compile cleanly with TypeScript strict mode
+### Phase 1: Codebase Audit & Conflict Resolution
+- Resolved 10 files with unresolved merge conflicts in Node.js monorepo
+- All 3 TypeScript packages compile cleanly
+
+### Phase 2: Full-Stack Platform Build
+- **Auth**: Emergent Google OAuth (session exchange, cookie auth, /me, /logout)
+- **Backend API**: 16 endpoints (health, auth, preferences CRUD, profile CRUD, dashboard, jobs, matches, match actions, applications, ingestion, matching)
+- **LLM Matching**: GPT-5.2 scoring with structured JSON output (score, summary, reasons). Fallback keyword scorer.
+- **Job Ingestion**: Remotive API connector, auto-ingest every 5 min, manual trigger
+- **Apply Logic**: Approve → creates application attempt (status: ready) + returns job URL
+- **Frontend**: 6 pages (Login, Dashboard, Matches, Preferences, Profile, Applications)
+- **CI/CD**: GitHub Actions workflow (TypeScript check, Python lint, frontend build)
+- **Design**: Dark theme (#0A0A0A background), Outfit + Manrope fonts, blue accent (#3B82F6), score ring visualizations
+
+### Testing Results
+- Backend: 100% (16/16 tests passed)
+- Frontend: 100% (all pages load, navigate, integrate with backend)
+- Integration: 100% (auth flow, data flow, LLM scoring all working)
 
 ## Prioritized Backlog
 
-### P0 — Critical
-- [ ] No authentication (JWT_SECRET defined but no auth middleware)
-- [ ] Apply worker is a stub (marks "succeeded" immediately, no actual application submission)
+### P0 — Done
+- [x] Google OAuth authentication
+- [x] AI-powered matching with GPT-5.2
+- [x] Real apply logic (mark ready + job link)
+- [x] Candidate dashboard
 
-### P1 — High
-- [ ] No frontend/UI — entirely backend services
-- [ ] No CI/CD pipeline
-- [ ] No resume upload/parsing functionality
-- [ ] Matching scoring is rule-based only (no AI/LLM)
+### P1 — Next Up
+- [ ] Resume upload and parsing (PDF → text extraction)
+- [ ] Additional job source connectors (LinkedIn, Indeed, WeWorkRemotely RSS)
+- [ ] Email notifications for new matches
+- [ ] Match history/analytics over time
 
-### P2 — Medium
-- [ ] No end-to-end tests
-- [ ] No monitoring/observability (metrics, structured logging)
-- [ ] No deployment manifests (K8s, Docker images)
-- [ ] File ingestion repository (local fallback) removed — only Postgres driver now
-
-### P3 — Nice to have
-- [ ] Additional job source connectors (LinkedIn, Indeed, etc.)
-- [ ] Resume tailoring / cover letter generation (LLM-powered)
-- [ ] Email notification channel
-- [ ] Admin dashboard for ingestion monitoring
+### P2 — Future
+- [ ] AI-generated cover letters per match
+- [ ] Browser extension for one-click apply
+- [ ] Admin dashboard for system monitoring
+- [ ] Multi-user team features
+- [ ] Mobile-responsive improvements
 
 ## Next Tasks
-1. Add JWT authentication middleware to API
-2. Build candidate-facing frontend dashboard
-3. Integrate LLM-based matching/scoring (GPT or similar)
-4. Implement actual job application submission in apply worker
-5. Add CI pipeline (lint, test, build)
+1. Resume upload + parsing
+2. WeWorkRemotely RSS connector in Python backend
+3. Email notification channel
+4. Match analytics/trends page
