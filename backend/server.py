@@ -536,7 +536,7 @@ async def run_matching(user=Depends(get_current_user)):
         return {"matches_created": 0, "message": "No new jobs to match."}
 
     new_matches = []
-    for job in jobs[:10]:
+    for job in jobs[:5]:
         try:
             score_data = await score_match_with_llm(prefs, profile, job)
         except Exception as e:
