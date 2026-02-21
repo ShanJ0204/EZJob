@@ -325,7 +325,8 @@ async def notify_high_score_matches(user_id, matches_with_jobs):
             await send_email_notification(user_id, settings["email_address"], f"EZJob: {score}/100 Match - {title} at {company}", html)
 
         if settings.get("telegram_enabled") and settings.get("telegram_bot_token") and settings.get("telegram_chat_id"):
-            msg = f"<b>New High-Score Match!</b>\n\n<b>{title}</b>\n{company}\n\nScore: <b>{score}/100</b>\n{f'<a href=\"{url}\">View Job</a>' if url else ''}"
+            link_html = f'<a href="{url}">View Job</a>' if url else ''
+            msg = f"<b>New High-Score Match!</b>\n\n<b>{title}</b>\n{company}\n\nScore: <b>{score}/100</b>\n{link_html}"
             await send_telegram_notification(settings["telegram_bot_token"], settings["telegram_chat_id"], msg, user_id)
 
 # ── Job Postings ─────────────────────────────────────────
