@@ -2,77 +2,68 @@
 
 ## Original Problem Statement
 Build a comprehensive job-matching automation platform with:
-1. JWT/Google OAuth authentication (Emergent-managed Google social login)
+1. Google OAuth authentication (Emergent-managed)
 2. Candidate-facing frontend dashboard
-3. AI-powered matching with GPT-5.2 via Emergent LLM key
-4. Real apply logic (mark as ready + notify with job link)
-5. GitHub Actions CI/CD pipeline
+3. AI-powered matching with GPT-5.2
+4. Real apply logic (mark ready + job link)
+5. GitHub Actions CI/CD
+6. Resume upload & PDF parsing for richer match scoring
+7. WeWorkRemotely RSS connector for more job sources
+8. Email + Telegram notifications for high-score matches (80+)
+9. Match analytics/trends page
 
 ## Architecture
-- **Frontend**: React 18 + Tailwind CSS + Framer Motion (port 3000)
+- **Frontend**: React 18 + Tailwind CSS (port 3000)
 - **Backend**: Python FastAPI + Motor (async MongoDB) (port 8001)
-- **Database**: MongoDB (users, sessions, preferences, profiles, job_postings, match_results, applications, ingestion_runs)
-- **LLM**: OpenAI GPT-5.2 via emergentintegrations library with Emergent LLM key
+- **Database**: MongoDB (users, sessions, preferences, profiles, job_postings, match_results, applications, ingestion_runs, notification_events, notification_settings)
+- **LLM**: OpenAI GPT-5.2 via emergentintegrations with Emergent LLM key
 - **Auth**: Emergent-managed Google OAuth with session cookies
-- **Legacy**: Node.js/TypeScript monorepo (apps/api, apps/worker, libs/common) — original codebase with Prisma/PostgreSQL schema, merge conflicts resolved
+- **Notifications**: Resend (email), Telegram Bot API — user-configurable
+- **Job Sources**: Remotive API, WeWorkRemotely RSS
+- **CI/CD**: GitHub Actions (TypeScript check, Python lint, frontend build)
 
-## User Personas
-1. **Job Seeker** — logs in, sets preferences, views AI-scored matches, approves/rejects, tracks applications
-2. **System Admin** — monitors ingestion stats, job indexing, matching pipeline
+## What's Been Implemented
 
-## Core Requirements
-- Google OAuth login via Emergent Auth
-- Dashboard with funnel stats (total matches, pending, approved, applied)
-- AI job matching: GPT-5.2 scores candidate-job pairs (0-100) with reasons
-- Job ingestion from Remotive API (automated every 5 min + manual trigger)
-- Match approve/reject with application tracking
-- User preferences: desired titles, locations, salary, remote-only, notifications
-- Candidate profile management
+### Phase 1: Merge Conflict Resolution
+- Resolved 10 files with git merge conflicts in Node.js monorepo
 
-## What's Been Implemented (Jan 2026)
+### Phase 2: Full-Stack Platform (MVP)
+- Google OAuth, 16 API endpoints, React frontend (6 pages), GPT-5.2 matching, Remotive ingestion, apply workflow, CI/CD
+- 100% test pass rate
 
-### Phase 1: Codebase Audit & Conflict Resolution
-- Resolved 10 files with unresolved merge conflicts in Node.js monorepo
-- All 3 TypeScript packages compile cleanly
+### Phase 3: Feature Expansion (Current)
+- **Resume Upload & PDF Parsing**: POST /api/resume/upload extracts text via pdfplumber, stored in candidate profile, included in LLM matching prompts for richer scoring
+- **WeWorkRemotely RSS Connector**: Fetches jobs from RSS feed alongside Remotive (72+ total jobs indexed)
+- **Email Notifications**: Resend integration, auto-sends for 80+ score matches, configurable in preferences
+- **Telegram Notifications**: User-configurable bot token + chat ID, auto-sends for 80+ score matches
+- **Analytics Page**: Score distribution, match trends (30 days), status breakdown, source breakdown, application funnel, top matches, notification stats
+- **Notification Settings**: User can configure email/telegram per channel, test notifications
+- 100% backend (24/24), 100% integration test pass rate
 
-### Phase 2: Full-Stack Platform Build
-- **Auth**: Emergent Google OAuth (session exchange, cookie auth, /me, /logout)
-- **Backend API**: 16 endpoints (health, auth, preferences CRUD, profile CRUD, dashboard, jobs, matches, match actions, applications, ingestion, matching)
-- **LLM Matching**: GPT-5.2 scoring with structured JSON output (score, summary, reasons). Fallback keyword scorer.
-- **Job Ingestion**: Remotive API connector, auto-ingest every 5 min, manual trigger
-- **Apply Logic**: Approve → creates application attempt (status: ready) + returns job URL
-- **Frontend**: 6 pages (Login, Dashboard, Matches, Preferences, Profile, Applications)
-- **CI/CD**: GitHub Actions workflow (TypeScript check, Python lint, frontend build)
-- **Design**: Dark theme (#0A0A0A background), Outfit + Manrope fonts, blue accent (#3B82F6), score ring visualizations
-
-### Testing Results
-- Backend: 100% (16/16 tests passed)
-- Frontend: 100% (all pages load, navigate, integrate with backend)
-- Integration: 100% (auth flow, data flow, LLM scoring all working)
+## Testing Results
+- Iteration 1: 100% backend, 100% frontend, 100% integration
+- Iteration 2: 100% backend (24/24), 95% frontend (auth-gated), 100% integration
 
 ## Prioritized Backlog
 
 ### P0 — Done
 - [x] Google OAuth authentication
-- [x] AI-powered matching with GPT-5.2
-- [x] Real apply logic (mark ready + job link)
+- [x] AI matching with GPT-5.2
+- [x] Apply logic + application tracking
 - [x] Candidate dashboard
+- [x] Resume upload & PDF parsing
+- [x] WeWorkRemotely RSS connector
+- [x] Email + Telegram notifications
+- [x] Analytics/trends page
+- [x] CI/CD pipeline
 
-### P1 — Next Up
-- [ ] Resume upload and parsing (PDF → text extraction)
-- [ ] Additional job source connectors (LinkedIn, Indeed, WeWorkRemotely RSS)
-- [ ] Email notifications for new matches
-- [ ] Match history/analytics over time
+### P1 — Next
+- [ ] Resend API key configuration (email currently skipped without key)
+- [ ] More job sources (LinkedIn, Indeed)
+- [ ] AI-generated cover letters per match
 
 ### P2 — Future
-- [ ] AI-generated cover letters per match
 - [ ] Browser extension for one-click apply
-- [ ] Admin dashboard for system monitoring
-- [ ] Multi-user team features
-- [ ] Mobile-responsive improvements
-
-## Next Tasks
-1. Resume upload + parsing
-2. WeWorkRemotely RSS connector in Python backend
-3. Email notification channel
-4. Match analytics/trends page
+- [ ] Admin dashboard
+- [ ] Resume skills extraction + structured parsing
+- [ ] Match comparison view
