@@ -20,6 +20,7 @@ class EZJobAPITester:
         self.tests_passed = 0
         self.failures = []
         self.created_match_id = None
+        self.created_attempt_id = None
         
     def log(self, message, success=None):
         timestamp = datetime.now().strftime("%H:%M:%S")
