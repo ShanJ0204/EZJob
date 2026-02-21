@@ -1,0 +1,36 @@
+module.exports = {
+  content: ["./src/**/*.{js,jsx,ts,tsx}"],
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        background: "#0A0A0A",
+        foreground: "#FAFAFA",
+        card: "#121212",
+        "card-foreground": "#FAFAFA",
+        primary: "#3B82F6",
+        "primary-foreground": "#FFFFFF",
+        secondary: "#27272A",
+        "secondary-foreground": "#FAFAFA",
+        muted: "#27272A",
+        "muted-foreground": "#A1A1AA",
+        accent: "#27272A",
+        "accent-foreground": "#FAFAFA",
+        destructive: "#F43F5E",
+        "destructive-foreground": "#FFFFFF",
+        border: "#27272A",
+        input: "#27272A",
+        ring: "#3B82F6",
+        violet: "#8B5CF6",
+        emerald: "#10B981",
+        amber: "#F59E0B",
+      },
+      fontFamily: {
+        heading: ["Outfit", "sans-serif"],
+        body: ["Manrope", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
+      },
+    },
+  },
+  plugins: [],
+};
