@@ -2,6 +2,7 @@ import { Prisma, UserPreference } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
 import { NotificationBot } from "./bot.js";
+import { ApplyQueuePublisher } from "./apply-queue.js";
 import { buildMatchAlertMessage } from "./template.js";
 import { CallbackPayload, MatchAlertPayload, NOTIFICATION_ACTIONS, NotificationAction } from "./types.js";
 
@@ -80,7 +81,10 @@ const isWithinQuietHours = (preference: UserPreference, now: Date): boolean => {
 };
 
 export class NotificationService {
-  public constructor(private readonly bot: NotificationBot) {}
+  public constructor(
+    private readonly bot: NotificationBot,
+    private readonly applyQueuePublisher: ApplyQueuePublisher,
+  ) {}
 
   public async sendMatchAlert(payload: MatchAlertPayload): Promise<{ status: string; messageId?: string }> {
     const now = new Date();
@@ -172,7 +176,49 @@ export class NotificationService {
   }
 
   public async captureCallback(payload: CallbackPayload): Promise<{ status: string }> {
-    const userId = payload.userId ?? await this.resolveUserId(payload.matchResultId);
+    const matchResult = await prisma.matchResult.findUnique({
+      where: { id: payload.matchResultId },
+      select: {
+        id: true,
+        userId: true,
+        jobPostingId: true,
+        resumeVariantId: true,
+      },
+    });
+
+    if (!matchResult) {
+      throw new Error("Match result not found for callback");
+    }
+
+    const userId = payload.userId ?? matchResult.userId;
+
+    let applicationAttemptId: string | undefined;
+    if (payload.action === "Approve") {
+      const applicationAttempt = await prisma.applicationAttempt.create({
+        data: {
+          userId,
+          jobPostingId: matchResult.jobPostingId,
+          resumeVariantId: matchResult.resumeVariantId,
+          matchResultId: payload.matchResultId,
+          status: "queued",
+          requestArtifactUri: JSON.stringify({
+            mode: "assisted_apply",
+            action: payload.action,
+            messageId: payload.messageId,
+            metadata: payload.metadata ?? null,
+          }),
+        },
+      });
+
+      applicationAttemptId = applicationAttempt.id;
+
+      await this.applyQueuePublisher.publishApply({
+        applicationAttemptId: applicationAttempt.id,
+        matchResultId: matchResult.id,
+        userId,
+        resumeVariantId: matchResult.resumeVariantId ?? undefined,
+      });
+    }
 
     await this.logEvent(userId, payload.matchResultId, CALLBACK_EVENT_TYPE, CALLBACK_STATUS, asJsonObject({
       action: payload.action,
@@ -182,25 +228,12 @@ export class NotificationService {
     await this.logEvent(userId, payload.matchResultId, DECISION_EVENT_TYPE, DECISION_CAPTURED_STATUS, asJsonObject({
       decision: payload.action,
       messageId: payload.messageId,
+      applicationAttemptId,
       metadata: payload.metadata ? asJsonObject(payload.metadata) : null,
     }), "bot", undefined, payload.messageId, payload.action);
 
     return { status: DECISION_CAPTURED_STATUS };
   }
-
-  private async resolveUserId(matchResultId: string): Promise<string> {
-    const result = await prisma.matchResult.findUnique({
-      where: { id: matchResultId },
-      select: { userId: true }
-    });
-
-    if (!result?.userId) {
-      throw new Error("Unable to resolve callback user for match result");
-    }
-
-    return result.userId;
-  }
-
   private async logEvent(
     userId: string,
     matchResultId: string,
