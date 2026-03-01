@@ -5,6 +5,7 @@ import { Redis } from "ioredis";
 import { QUEUE_NAMES } from "@ezjob/common";
 import { RemotiveApiConnector } from "./ingestion/connectors/remotive-api.connector.js";
 import { WeWorkRemotelyRssConnector } from "./ingestion/connectors/weworkremotely-rss.connector.js";
+import { FixtureJsonConnector } from "./ingestion/connectors/fixture-json.connector.js";
 import { IngestionService } from "./ingestion/service.js";
 import type { IngestionRunMetadata } from "./ingestion/types.js";
 import { MatchingWorker, type NotificationJobData } from "./matching/index.js";
@@ -15,6 +16,7 @@ const ingestionPollIntervalMs = Number(process.env.INGESTION_POLL_INTERVAL_MS ??
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const orchestratorLockKey = process.env.ORCHESTRATION_LOCK_KEY ?? "ezjob:worker:orchestration:lock";
 const instanceId = process.env.WORKER_INSTANCE_ID ?? randomUUID();
+const ingestionMode = process.env.INGESTION_MODE ?? "live";
 
 if (!Number.isFinite(ingestionPollIntervalMs) || ingestionPollIntervalMs <= 0) {
   throw new Error("INGESTION_POLL_INTERVAL_MS must be a positive number");
@@ -26,6 +28,7 @@ console.log("Worker concurrency:", concurrency);
 console.log("Ingestion poll interval (ms):", ingestionPollIntervalMs);
 console.log("Redis URL:", redisUrl);
 console.log("Worker instance ID:", instanceId);
+console.log("Ingestion mode:", ingestionMode);
 
 const redis = new Redis(redisUrl, {
   maxRetriesPerRequest: null
@@ -87,10 +90,12 @@ const applyQueue = new Queue<ApplyJobData>(QUEUE_NAMES.apply, {
   }
 });
 
-const ingestionService = new IngestionService([
-  new RemotiveApiConnector(),
-  new WeWorkRemotelyRssConnector()
-]);
+const ingestionConnectors =
+  ingestionMode === "fixture"
+    ? [new FixtureJsonConnector()]
+    : [new RemotiveApiConnector(), new WeWorkRemotelyRssConnector()];
+
+const ingestionService = new IngestionService(ingestionConnectors);
 
 const matchingProcessor = new MatchingWorker(notificationQueue);
 const applyProcessor = new ApplyWorker();

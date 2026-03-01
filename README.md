@@ -30,6 +30,25 @@ EZJob is organized as a modular monorepo to separate external APIs, async proces
    npm run dev --workspace @ezjob/worker
    ```
 
+
+## Deterministic demo mode
+
+Use fixture ingestion data so the same postings are always available in demos:
+
+```bash
+cp .env.example .env
+# Ensure INGESTION_MODE=fixture
+npm run dev --workspace @ezjob/worker
+```
+
+Seed a demo user + match result and print ready-to-run curl commands:
+
+```bash
+DATABASE_URL=postgresql://ezjob:ezjob@127.0.0.1:5432/ezjob \
+  API_BASE_URL=http://127.0.0.1:8000 \
+  scripts/demo/seed-demo-data.sh
+```
+
 ## Architecture summary
 
 - API receives requests and publishes jobs/events.
