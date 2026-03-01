@@ -1,5 +1,4 @@
-import { Queue } from "bullmq";
-import { Redis } from "ioredis";
+import { Queue, type ConnectionOptions } from "bullmq";
 import { QUEUE_NAMES } from "@ezjob/common";
 
 export interface ApplyJobPayload {
@@ -16,15 +15,15 @@ export interface ApplyQueuePublisher {
 
 export class BullApplyQueuePublisher implements ApplyQueuePublisher {
   private readonly queue: Queue<ApplyJobPayload>;
-  private readonly connection: Redis;
 
   public constructor(redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379") {
-    this.connection = new Redis(redisUrl, {
-      maxRetriesPerRequest: null,
-    });
+    const connection = {
+      url: redisUrl,
+      maxRetriesPerRequest: null
+    } satisfies ConnectionOptions;
 
     this.queue = new Queue<ApplyJobPayload>(QUEUE_NAMES.apply, {
-      connection: this.connection,
+      connection,
       defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -44,10 +43,7 @@ export class BullApplyQueuePublisher implements ApplyQueuePublisher {
   }
 
   public async close(): Promise<void> {
-    await Promise.all([
-      this.queue.close(),
-      this.connection.quit(),
-    ]);
+    await this.queue.close();
   }
 }
 

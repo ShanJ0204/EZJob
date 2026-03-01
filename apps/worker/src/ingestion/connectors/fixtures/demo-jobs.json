@@ -1,0 +1,50 @@
+[
+  {
+    "sourceJobId": "fixture-rem-001",
+    "sourceUrl": "https://demo.ezjob.local/jobs/fixture-rem-001",
+    "title": "Senior TypeScript Engineer",
+    "companyName": "DemoWorks",
+    "locationText": "Remote - US",
+    "locationCountry": "United States",
+    "isRemote": true,
+    "employmentType": "full-time",
+    "seniorityLevel": "senior",
+    "salaryMin": 150000,
+    "salaryMax": 185000,
+    "salaryCurrency": "USD",
+    "description": "Build reliable Node.js services and distributed workers.",
+    "postedAt": "2026-01-15T09:00:00.000Z"
+  },
+  {
+    "sourceJobId": "fixture-rem-002",
+    "sourceUrl": "https://demo.ezjob.local/jobs/fixture-rem-002",
+    "title": "Backend Platform Engineer",
+    "companyName": "Async Labs",
+    "locationText": "Remote - Europe",
+    "locationCountry": "Germany",
+    "isRemote": true,
+    "employmentType": "full-time",
+    "seniorityLevel": "mid",
+    "salaryMin": 90000,
+    "salaryMax": 120000,
+    "salaryCurrency": "EUR",
+    "description": "Own queue orchestration, ingestion, and notification infrastructure.",
+    "postedAt": "2026-01-18T13:30:00.000Z"
+  },
+  {
+    "sourceJobId": "fixture-rem-003",
+    "sourceUrl": "https://demo.ezjob.local/jobs/fixture-rem-003",
+    "title": "AI Product Engineer",
+    "companyName": "SignalForge",
+    "locationText": "Remote - Global",
+    "locationCountry": "Remote",
+    "isRemote": true,
+    "employmentType": "contract",
+    "seniorityLevel": "mid",
+    "salaryMin": 80,
+    "salaryMax": 115,
+    "salaryCurrency": "USD",
+    "description": "Prototype ranking and personalization features for job matching.",
+    "postedAt": "2026-01-20T16:15:00.000Z"
+  }
+]
