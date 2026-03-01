@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { Queue, Worker, type JobsOptions } from "bullmq";
+import { Queue, Worker, type ConnectionOptions, type JobsOptions } from "bullmq";
 import { Redis } from "ioredis";
 import { QUEUE_NAMES } from "@ezjob/common";
 import { RemotiveApiConnector } from "./ingestion/connectors/remotive-api.connector.js";
@@ -34,12 +34,13 @@ const redis = new Redis(redisUrl, {
   maxRetriesPerRequest: null
 });
 
-const queueConnection = new Redis(redisUrl, {
+const bullConnection = {
+  url: redisUrl,
   maxRetriesPerRequest: null
-});
+} satisfies ConnectionOptions;
 
 const ingestionQueue = new Queue<IngestionJobData>(QUEUE_NAMES.ingestion, {
-  connection: queueConnection,
+  connection: bullConnection,
   defaultJobOptions: {
     attempts: 3,
     backoff: {
@@ -52,7 +53,7 @@ const ingestionQueue = new Queue<IngestionJobData>(QUEUE_NAMES.ingestion, {
 });
 
 const matchingQueue = new Queue<MatchingJobData>(QUEUE_NAMES.matching, {
-  connection: queueConnection,
+  connection: bullConnection,
   defaultJobOptions: {
     attempts: 3,
     backoff: {
@@ -65,7 +66,7 @@ const matchingQueue = new Queue<MatchingJobData>(QUEUE_NAMES.matching, {
 });
 
 const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAMES.notification, {
-  connection: queueConnection,
+  connection: bullConnection,
   defaultJobOptions: {
     attempts: 5,
     backoff: {
@@ -78,7 +79,7 @@ const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAMES.notificatio
 });
 
 const applyQueue = new Queue<ApplyJobData>(QUEUE_NAMES.apply, {
-  connection: queueConnection,
+  connection: bullConnection,
   defaultJobOptions: {
     attempts: 3,
     backoff: {
@@ -145,7 +146,7 @@ const ingestionWorker = new Worker<IngestionJobData>(
   },
   {
     concurrency,
-    connection: new Redis(redisUrl, { maxRetriesPerRequest: null })
+    connection: bullConnection
   }
 );
 
@@ -165,7 +166,7 @@ const matchingWorker = new Worker<MatchingJobData>(
   },
   {
     concurrency,
-    connection: new Redis(redisUrl, { maxRetriesPerRequest: null })
+    connection: bullConnection
   }
 );
 
@@ -174,7 +175,7 @@ const applyWorker = new Worker<ApplyJobData>(
   async (job) => applyProcessor.process(job),
   {
     concurrency,
-    connection: new Redis(redisUrl, { maxRetriesPerRequest: null })
+    connection: bullConnection
   }
 );
 
@@ -250,7 +251,6 @@ const shutdown = async (signal: string): Promise<void> => {
     matchingProcessor.close(),
     applyProcessor.close(),
     redis.quit(),
-    queueConnection.quit()
   ]);
   process.exit(0);
 };
