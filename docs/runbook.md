@@ -48,3 +48,26 @@
    - `POST /notifications/match-alerts/send`
 4. Telegram inline keyboard actions are consumed by:
    - `POST /notifications/telegram/webhook`
+
+
+## Deterministic demo setup
+
+1. Copy the env template and keep fixture mode enabled:
+   ```bash
+   cp .env.example .env
+   ```
+   - Set `INGESTION_MODE=fixture` (default in template).
+2. Start API and worker.
+3. Seed demo records and print ready-to-run notification curl commands:
+   ```bash
+   DATABASE_URL=postgresql://ezjob:ezjob@127.0.0.1:5432/ezjob \
+     API_BASE_URL=http://127.0.0.1:8000 \
+     scripts/demo/seed-demo-data.sh
+   ```
+4. Trigger notification send using the command printed by the script.
+
+### Fixture connector knobs
+
+- `INGESTION_MODE=fixture` enables deterministic fixture ingestion.
+- `INGESTION_FIXTURE_FILE` lets you override fixture JSON path (default: `apps/worker/src/ingestion/connectors/fixtures/demo-jobs.json`).
+- `INGESTION_MODE=live` switches back to Remotive + WeWorkRemotely live scraping.
