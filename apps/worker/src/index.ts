@@ -4,6 +4,7 @@ import { Queue, Worker, type ConnectionOptions, type JobsOptions } from "bullmq"
 import { Redis } from "ioredis";
 import { QUEUE_NAMES } from "@ezjob/common";
 import { RemotiveApiConnector } from "./ingestion/connectors/remotive-api.connector.js";
+import { ScraplingPythonConnector } from "./ingestion/connectors/scrapling-python.connector.js";
 import { WeWorkRemotelyRssConnector } from "./ingestion/connectors/weworkremotely-rss.connector.js";
 import { FixtureJsonConnector } from "./ingestion/connectors/fixture-json.connector.js";
 import { IngestionService } from "./ingestion/service.js";
@@ -94,7 +95,9 @@ const applyQueue = new Queue<ApplyJobData>(QUEUE_NAMES.apply, {
 const ingestionConnectors =
   ingestionMode === "fixture"
     ? [new FixtureJsonConnector()]
-    : [new RemotiveApiConnector(), new WeWorkRemotelyRssConnector()];
+    : ingestionMode === "scrapling"
+      ? [new ScraplingPythonConnector()]
+      : [new RemotiveApiConnector(), new WeWorkRemotelyRssConnector()];
 
 const ingestionService = new IngestionService(ingestionConnectors);
 
