@@ -2,12 +2,22 @@ import type { IngestionConnector, IngestionRunMetadata } from "./types.js";
 import { deduplicatePostings } from "./dedup.js";
 import { PostgresIngestionRepository } from "./storage/postgres-ingestion.repository.js";
 
+type IngestionRepository = Pick<
+  PostgresIngestionRepository,
+  "getAllPostings" | "upsertPostings" | "saveRun"
+>;
+
 export class IngestionService {
-  private readonly repository = new PostgresIngestionRepository();
+  private readonly repository: IngestionRepository;
 
-  constructor(private readonly connectors: IngestionConnector[]) {}
+  constructor(
+    private readonly connectors: IngestionConnector[],
+    repository: IngestionRepository = new PostgresIngestionRepository()
+  ) {
+    this.repository = repository;
+  }
 
-  async runOnce(): Promise<IngestionRunMetadata[]> {
+  async runOnce(cycleId?: string): Promise<IngestionRunMetadata[]> {
     const existing = await this.repository.getAllPostings();
     const runResults: IngestionRunMetadata[] = [];
 
@@ -34,6 +44,16 @@ export class IngestionService {
       };
 
       await this.repository.saveRun(metadata);
+      console.info(
+        JSON.stringify({
+          message: "ingestion source processed",
+          cycleId,
+          source: metadata.source,
+          fetchedCount: metadata.fetchedCount,
+          insertedCount: metadata.insertedCount,
+          errors: metadata.errors
+        })
+      );
       runResults.push(metadata);
     }
 

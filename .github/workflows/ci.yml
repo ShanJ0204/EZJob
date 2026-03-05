@@ -54,20 +54,17 @@ jobs:
         run: npx prisma generate
         working-directory: apps/api
 
-      - name: TypeScript Check - Common
-        run: npx tsc --noEmit -p libs/common/tsconfig.json
+      - name: Build all workspaces
+        run: npm run build
 
-      - name: TypeScript Check - API
-        run: npx tsc --noEmit -p apps/api/tsconfig.json
-
-      - name: TypeScript Check - Worker
-        run: npx tsc --noEmit -p apps/worker/tsconfig.json
-
-      - name: Run API Tests
+      - name: Run API tests (apps/api/src/**/*.test.ts)
         run: npm run test --workspace @ezjob/api
         env:
           DATABASE_URL: postgresql://ezjob:ezjob@localhost:5432/ezjob
           REDIS_URL: redis://localhost:6379/0
+
+      - name: Run worker tests
+        run: npm run test --workspace @ezjob/worker
 
   python-backend:
     runs-on: ubuntu-latest
