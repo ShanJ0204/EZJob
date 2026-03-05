@@ -49,6 +49,27 @@ DATABASE_URL=postgresql://ezjob:ezjob@127.0.0.1:5432/ezjob \
   scripts/demo/seed-demo-data.sh
 ```
 
+
+## Scrapling ingestion mode
+
+EZJob worker supports a Scrapling-powered ingestion mode for scraping job boards with adaptive selectors.
+
+1. Install Python dependencies:
+   ```bash
+   pip install scrapling "scrapling[fetchers]"
+   ```
+2. Set worker mode in `.env`:
+   ```bash
+   INGESTION_MODE=scrapling
+   SCRAPLING_PYTHON_BIN=python3
+   SCRAPLING_SCRIPT_PATH=apps/worker/src/ingestion/connectors/scripts/scrapling_weworkremotely.py
+   SCRAPLING_TARGET_URL=https://weworkremotely.com/remote-jobs
+   ```
+3. Start worker:
+   ```bash
+   npm run dev --workspace @ezjob/worker
+   ```
+
 ## Architecture summary
 
 - API receives requests and publishes jobs/events.

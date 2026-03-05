@@ -71,3 +71,4 @@
 - `INGESTION_MODE=fixture` enables deterministic fixture ingestion.
 - `INGESTION_FIXTURE_FILE` lets you override fixture JSON path (default: `apps/worker/src/ingestion/connectors/fixtures/demo-jobs.json`).
 - `INGESTION_MODE=live` switches back to Remotive + WeWorkRemotely live scraping.
+- `INGESTION_MODE=scrapling` uses the Scrapling Python bridge connector. Configure with `SCRAPLING_PYTHON_BIN`, `SCRAPLING_SCRIPT_PATH`, and `SCRAPLING_TARGET_URL`.
