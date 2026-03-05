@@ -8,9 +8,7 @@ COPY libs/common/package.json libs/common/package.json
 RUN npm ci
 
 COPY tsconfig.base.json ./
-COPY apps/api/src apps/api/src
-COPY apps/api/prisma apps/api/prisma
-COPY apps/api/tsconfig.json apps/api/tsconfig.json
+COPY apps/api apps/api
 COPY libs/common libs/common
 
 RUN npm run build --workspace @ezjob/common \
@@ -23,7 +21,6 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 COPY apps/api/package.json apps/api/package.json
-COPY apps/api/prisma apps/api/prisma
 COPY libs/common/package.json libs/common/package.json
 
 RUN npm ci --omit=dev --workspace @ezjob/common --workspace @ezjob/api
