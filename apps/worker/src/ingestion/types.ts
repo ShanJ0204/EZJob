@@ -1,6 +1,6 @@
 import type { JobPosting } from "@ezjob/common";
 
-export type ConnectorType = "api" | "rss";
+export type ConnectorType = "api" | "rss" | "scraper";
 
 export interface ConnectorFetchResult {
   sourceName: string;
