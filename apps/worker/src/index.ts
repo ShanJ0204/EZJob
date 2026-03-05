@@ -126,12 +126,26 @@ type MatchingJobData = {
 const ingestionWorker = new Worker<IngestionJobData>(
   QUEUE_NAMES.ingestion,
   async (job) => {
-    console.log(`[cycle:${job.data.cycleId}] ingestion phase start`);
+    console.info(
+      JSON.stringify({
+        message: "ingestion phase start",
+        cycleId: job.data.cycleId
+      })
+    );
 
-    const runs = await ingestionService.runOnce();
+    const runs = await ingestionService.runOnce(job.data.cycleId);
     const summary = summarizeRuns(runs);
 
-    console.log(`[cycle:${job.data.cycleId}] ingestion phase end`, summary);
+    console.info(
+      JSON.stringify({
+        message: "ingestion phase end",
+        cycleId: job.data.cycleId,
+        source: "all",
+        fetchedCount: summary.fetchedCount,
+        insertedCount: summary.insertedCount,
+        errors: summary.errors
+      })
+    );
 
     await matchingQueue.add(
       "run-matching",
@@ -183,11 +197,29 @@ const applyWorker = new Worker<ApplyJobData>(
 );
 
 ingestionWorker.on("failed", (job, error) => {
-  console.error(`[cycle:${job?.data.cycleId ?? "unknown"}] ingestion phase failed`, error);
+  console.error(
+    "ingestion phase failed",
+    JSON.stringify({
+      cycleId: job?.data.cycleId ?? "unknown",
+      source: "all",
+      fetchedCount: 0,
+      insertedCount: 0,
+      errors: [error instanceof Error ? error.message : String(error)]
+    })
+  );
 });
 
 matchingWorker.on("failed", (job, error) => {
-  console.error(`[cycle:${job?.data.cycleId ?? "unknown"}] matching phase failed`, error);
+  console.error(
+    "matching phase failed",
+    JSON.stringify({
+      cycleId: job?.data.cycleId ?? "unknown",
+      source: "matching",
+      fetchedCount: 0,
+      insertedCount: 0,
+      errors: [error instanceof Error ? error.message : String(error)]
+    })
+  );
 });
 
 applyWorker.on("failed", (job, error) => {
